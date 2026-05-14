@@ -416,6 +416,17 @@ func (h *DashboardHandler) GetGroupStats(c *gin.Context) {
 	})
 }
 
+// GetGroupWindowStats returns 5h/7d windowed stats for all groups (admin view).
+// GET /api/v1/admin/dashboard/groups/windowed
+func (h *DashboardHandler) GetGroupWindowStats(c *gin.Context) {
+	stats, err := h.dashboardService.GetAllGroupsWindowStats(c.Request.Context())
+	if err != nil {
+		response.Error(c, 500, "Failed to get group window stats")
+		return
+	}
+	response.Success(c, gin.H{"groups": stats})
+}
+
 // GetAPIKeyUsageTrend handles getting API key usage trend data
 // GET /api/v1/admin/dashboard/api-keys-trend
 // Query params: start_date, end_date (YYYY-MM-DD), granularity (day/hour), limit (default 5)

@@ -618,7 +618,10 @@ export default {
     viewUsage: 'View Usage',
     checkDetailedLogs: 'Check detailed usage logs',
     redeemCode: 'Redeem Code',
-    addBalanceWithCode: 'Add balance with a code'
+    addBalanceWithCode: 'Add balance with a code',
+    groupStats: {
+      title: 'Group Consumption'
+    }
   },
 
   // Groups (shared)
@@ -5092,6 +5095,7 @@ export default {
         users: 'Users',
         gateway: 'Gateway',
         email: 'Email',
+        feishu: 'Feishu Webhook',
         backup: 'Backup',
         payment: 'Payment',
       },

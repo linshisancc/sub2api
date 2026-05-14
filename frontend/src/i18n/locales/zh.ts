@@ -617,7 +617,10 @@ export default {
     viewUsage: '查看使用记录',
     checkDetailedLogs: '查看详细的使用日志',
     redeemCode: '兑换码',
-    addBalanceWithCode: '使用兑换码充值'
+    addBalanceWithCode: '使用兑换码充值',
+    groupStats: {
+      title: '分组消耗额度'
+    }
   },
 
   // Groups (shared)
@@ -5255,6 +5258,7 @@ export default {
         users: '用户默认值',
         gateway: '网关服务',
         email: '邮件设置',
+        feishu: '飞书 Webhook',
         backup: '数据备份',
         payment: '支付设置',
       },
