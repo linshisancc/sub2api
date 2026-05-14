@@ -6046,28 +6046,34 @@
 
         <!-- Tab: Feishu -->
         <div v-show="activeTab === 'feishu'" class="space-y-6">
-          <div class="settings-section">
-            <div class="settings-section-header">
-              <h3 class="settings-section-title">飞书 Webhook 通知</h3>
-              <p class="settings-section-desc">通过飞书 Webhook 推送告警，同类告警触发冷却时间内只推送一次</p>
+          <!-- 基础配置 -->
+          <div class="card">
+            <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
+              <h3 class="text-base font-medium text-gray-900 dark:text-white">飞书 Webhook 通知</h3>
+              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                通过飞书机器人 Webhook 推送告警消息，与邮件告警并行触发，互不影响。
+              </p>
             </div>
-            <div class="settings-section-body space-y-4">
+            <div class="px-6 py-6 space-y-4">
               <div class="flex items-center justify-between">
-                <label class="settings-label">启用飞书 Webhook</label>
+                <label class="mb-0 block text-sm font-medium text-gray-700 dark:text-gray-300">启用飞书 Webhook</label>
                 <Toggle v-model="form.feishu_webhook_enabled" />
               </div>
               <div v-if="form.feishu_webhook_enabled" class="space-y-4">
                 <div>
-                  <label class="settings-label">Webhook URL</label>
+                  <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Webhook URL</label>
                   <input
                     v-model="form.feishu_webhook_url"
                     type="url"
                     class="input"
                     placeholder="https://open.feishu.cn/open-apis/bot/v2/hook/..."
                   />
+                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    在飞书群聊「设置 → 机器人 → 添加自定义机器人」获取 Webhook URL。
+                  </p>
                 </div>
                 <div>
-                  <label class="settings-label">冷却时间（分钟）</label>
+                  <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">冷却时间（分钟）</label>
                   <input
                     v-model.number="form.feishu_webhook_cooldown_minutes"
                     type="number"
@@ -6076,19 +6082,34 @@
                     class="input w-32"
                     placeholder="30"
                   />
-                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">同类告警在冷却时间内只推送一次，默认 30 分钟</p>
+                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">同类告警触发后，冷却期内不重复推送，默认 30 分钟，最大 1440 分钟（24 小时）。</p>
                 </div>
-                <div class="space-y-2">
-                  <label class="settings-label">推送告警类型</label>
-                  <div class="flex items-center gap-2">
-                    <input id="feishu-balance" type="checkbox" v-model="form.feishu_webhook_notify_balance" class="h-4 w-4 rounded border-gray-300 text-blue-600" />
-                    <label for="feishu-balance" class="text-sm text-gray-700 dark:text-gray-300">用户余额不足</label>
-                  </div>
-                  <div class="flex items-center gap-2">
-                    <input id="feishu-account" type="checkbox" v-model="form.feishu_webhook_notify_account" class="h-4 w-4 rounded border-gray-300 text-blue-600" />
-                    <label for="feishu-account" class="text-sm text-gray-700 dark:text-gray-300">账号额度超限</label>
-                  </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 推送告警类型 -->
+          <div v-if="form.feishu_webhook_enabled" class="card">
+            <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
+              <h3 class="text-base font-medium text-gray-900 dark:text-white">推送告警类型</h3>
+              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                选择需要推送到飞书群的告警类型，各类告警独立冷却。
+              </p>
+            </div>
+            <div class="px-6 py-6 space-y-4">
+              <div class="flex items-center justify-between">
+                <div>
+                  <p class="text-sm font-medium text-gray-700 dark:text-gray-300">用户余额不足</p>
+                  <p class="text-xs text-gray-500 dark:text-gray-400">用户余额低于告警阈值时触发，需在「邮件设置」中启用余额低通知。</p>
                 </div>
+                <Toggle v-model="form.feishu_webhook_notify_balance" />
+              </div>
+              <div class="flex items-center justify-between">
+                <div>
+                  <p class="text-sm font-medium text-gray-700 dark:text-gray-300">账号额度超限</p>
+                  <p class="text-xs text-gray-500 dark:text-gray-400">账号日 / 周 / 总额度触达告警阈值时触发，需在「邮件设置」中启用账号配额通知。</p>
+                </div>
+                <Toggle v-model="form.feishu_webhook_notify_account" />
               </div>
             </div>
           </div>
