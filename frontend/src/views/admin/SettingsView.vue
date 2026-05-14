@@ -6040,6 +6040,54 @@
               </div>
             </div>
           </div>
+
+          <!-- Feishu Webhook -->
+          <div class="settings-section">
+            <div class="settings-section-header">
+              <h3 class="settings-section-title">飞书 Webhook 通知</h3>
+              <p class="settings-section-desc">通过飞书 Webhook 推送告警，同类告警触发冷却时间内只推送一次</p>
+            </div>
+            <div class="settings-section-body space-y-4">
+              <div class="flex items-center justify-between">
+                <label class="settings-label">启用飞书 Webhook</label>
+                <Toggle v-model="form.feishu_webhook_enabled" />
+              </div>
+              <div v-if="form.feishu_webhook_enabled" class="space-y-4">
+                <div>
+                  <label class="settings-label">Webhook URL</label>
+                  <input
+                    v-model="form.feishu_webhook_url"
+                    type="url"
+                    class="input"
+                    placeholder="https://open.feishu.cn/open-apis/bot/v2/hook/..."
+                  />
+                </div>
+                <div>
+                  <label class="settings-label">冷却时间（分钟）</label>
+                  <input
+                    v-model.number="form.feishu_webhook_cooldown_minutes"
+                    type="number"
+                    min="1"
+                    max="1440"
+                    class="input w-32"
+                    placeholder="30"
+                  />
+                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">同类告警在冷却时间内只推送一次，默认 30 分钟</p>
+                </div>
+                <div class="space-y-2">
+                  <label class="settings-label">推送告警类型</label>
+                  <div class="flex items-center gap-2">
+                    <input id="feishu-balance" type="checkbox" v-model="form.feishu_webhook_notify_balance" class="h-4 w-4 rounded border-gray-300 text-blue-600" />
+                    <label for="feishu-balance" class="text-sm text-gray-700 dark:text-gray-300">用户余额不足</label>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <input id="feishu-account" type="checkbox" v-model="form.feishu_webhook_notify_account" class="h-4 w-4 rounded border-gray-300 text-blue-600" />
+                    <label for="feishu-account" class="text-sm text-gray-700 dark:text-gray-300">账号额度超限</label>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
         <!-- /Tab: Email -->
 
@@ -6608,6 +6656,12 @@ const form = reactive<SettingsForm>({
   balance_low_notify_recharge_url: "",
   account_quota_notify_enabled: false,
   account_quota_notify_emails: [] as NotifyEmailEntry[],
+  // Feishu Webhook notification
+  feishu_webhook_enabled: false,
+  feishu_webhook_url: "",
+  feishu_webhook_cooldown_minutes: 30,
+  feishu_webhook_notify_balance: true,
+  feishu_webhook_notify_account: true,
   // Channel Monitor feature switch
   channel_monitor_enabled: true,
   channel_monitor_default_interval_seconds: 60,
@@ -7713,6 +7767,12 @@ async function saveSettings() {
       account_quota_notify_emails: (
         form.account_quota_notify_emails || []
       ).filter((e) => e.email.trim() !== ""),
+      // Feishu Webhook notification
+      feishu_webhook_enabled: form.feishu_webhook_enabled,
+      feishu_webhook_url: form.feishu_webhook_url,
+      feishu_webhook_cooldown_minutes: Number(form.feishu_webhook_cooldown_minutes) || 30,
+      feishu_webhook_notify_balance: form.feishu_webhook_notify_balance,
+      feishu_webhook_notify_account: form.feishu_webhook_notify_account,
       // Channel Monitor feature switch
       channel_monitor_enabled: form.channel_monitor_enabled,
       channel_monitor_default_interval_seconds:

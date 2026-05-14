@@ -238,6 +238,11 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		BalanceLowNotifyRechargeURL:            settings.BalanceLowNotifyRechargeURL,
 		AccountQuotaNotifyEnabled:              settings.AccountQuotaNotifyEnabled,
 		AccountQuotaNotifyEmails:               dto.NotifyEmailEntriesFromService(settings.AccountQuotaNotifyEmails),
+		FeishuWebhookEnabled:                   settings.FeishuWebhookEnabled,
+		FeishuWebhookURL:                       settings.FeishuWebhookURL,
+		FeishuWebhookCooldownMinutes:           settings.FeishuWebhookCooldownMinutes,
+		FeishuWebhookNotifyBalance:             settings.FeishuWebhookNotifyBalance,
+		FeishuWebhookNotifyAccount:             settings.FeishuWebhookNotifyAccount,
 		PaymentEnabled:                         paymentCfg.Enabled,
 		PaymentMinAmount:                       paymentCfg.MinAmount,
 		PaymentMaxAmount:                       paymentCfg.MaxAmount,
@@ -535,6 +540,13 @@ type UpdateSettingsRequest struct {
 	BalanceLowNotifyRechargeURL *string                 `json:"balance_low_notify_recharge_url"`
 	AccountQuotaNotifyEnabled   *bool                   `json:"account_quota_notify_enabled"`
 	AccountQuotaNotifyEmails    *[]dto.NotifyEmailEntry `json:"account_quota_notify_emails"`
+
+	// Feishu Webhook notification
+	FeishuWebhookEnabled         *bool   `json:"feishu_webhook_enabled"`
+	FeishuWebhookURL             *string `json:"feishu_webhook_url"`
+	FeishuWebhookCooldownMinutes *int    `json:"feishu_webhook_cooldown_minutes"`
+	FeishuWebhookNotifyBalance   *bool   `json:"feishu_webhook_notify_balance"`
+	FeishuWebhookNotifyAccount   *bool   `json:"feishu_webhook_notify_account"`
 
 	// Payment configuration (integrated into settings, full replace)
 	PaymentEnabled                   *bool    `json:"payment_enabled"`
@@ -1498,6 +1510,36 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 				return dto.NotifyEmailEntriesToService(*req.AccountQuotaNotifyEmails)
 			}
 			return previousSettings.AccountQuotaNotifyEmails
+		}(),
+		FeishuWebhookEnabled: func() bool {
+			if req.FeishuWebhookEnabled != nil {
+				return *req.FeishuWebhookEnabled
+			}
+			return previousSettings.FeishuWebhookEnabled
+		}(),
+		FeishuWebhookURL: func() string {
+			if req.FeishuWebhookURL != nil {
+				return *req.FeishuWebhookURL
+			}
+			return previousSettings.FeishuWebhookURL
+		}(),
+		FeishuWebhookCooldownMinutes: func() int {
+			if req.FeishuWebhookCooldownMinutes != nil {
+				return *req.FeishuWebhookCooldownMinutes
+			}
+			return previousSettings.FeishuWebhookCooldownMinutes
+		}(),
+		FeishuWebhookNotifyBalance: func() bool {
+			if req.FeishuWebhookNotifyBalance != nil {
+				return *req.FeishuWebhookNotifyBalance
+			}
+			return previousSettings.FeishuWebhookNotifyBalance
+		}(),
+		FeishuWebhookNotifyAccount: func() bool {
+			if req.FeishuWebhookNotifyAccount != nil {
+				return *req.FeishuWebhookNotifyAccount
+			}
+			return previousSettings.FeishuWebhookNotifyAccount
 		}(),
 		ChannelMonitorEnabled: func() bool {
 			if req.ChannelMonitorEnabled != nil {

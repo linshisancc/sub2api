@@ -27,9 +27,26 @@ export async function getUserGroupRates(): Promise<Record<number, number>> {
   return data || {}
 }
 
+export interface GroupWindowStats {
+  group_id: number
+  requests_5h: number
+  actual_cost_5h: number
+  requests_7d: number
+  actual_cost_7d: number
+}
+
+/**
+ * Get 5h/7d aggregated usage stats for a group the user has access to
+ */
+export async function getGroupStats(groupId: number): Promise<GroupWindowStats> {
+  const { data } = await apiClient.get<GroupWindowStats>(`/groups/${groupId}/stats`)
+  return data
+}
+
 export const userGroupsAPI = {
   getAvailable,
-  getUserGroupRates
+  getUserGroupRates,
+  getGroupStats
 }
 
 export default userGroupsAPI

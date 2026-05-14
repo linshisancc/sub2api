@@ -384,6 +384,13 @@ const (
 	SettingKeyAccountQuotaNotifyEnabled = "account_quota_notify_enabled" // 全局开关
 	SettingKeyAccountQuotaNotifyEmails  = "account_quota_notify_emails"  // 管理员通知邮箱列表（JSON 数组）
 
+	// Feishu Webhook Notification
+	SettingKeyFeishuWebhookEnabled         = "feishu_webhook_enabled"          // 全局开关
+	SettingKeyFeishuWebhookURL             = "feishu_webhook_url"              // Webhook URL
+	SettingKeyFeishuWebhookCooldownMinutes = "feishu_webhook_cooldown_minutes" // 冷却时间（分钟）
+	SettingKeyFeishuWebhookNotifyBalance   = "feishu_webhook_notify_balance"   // 推送余额不足
+	SettingKeyFeishuWebhookNotifyAccount   = "feishu_webhook_notify_account"   // 推送账号额度超限
+
 	// Web Search Emulation
 	SettingKeyWebSearchEmulationConfig = "web_search_emulation_config" // JSON 配置
 )
