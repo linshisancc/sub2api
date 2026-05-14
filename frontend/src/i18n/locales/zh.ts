@@ -618,8 +618,11 @@ export default {
     checkDetailedLogs: '查看详细的使用日志',
     redeemCode: '兑换码',
     addBalanceWithCode: '使用兑换码充值',
-    groupStats: {
-      title: '分组消耗额度'
+    groupAccounts: {
+      title: '分组账号用量',
+      groups: '个分组',
+      empty: '暂无分组',
+      noAccounts: '暂无活跃账号'
     }
   },
 

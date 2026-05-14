@@ -131,11 +131,6 @@
                   />
                 </svg>
               </button>
-              <!-- 分组消耗额度 -->
-              <div v-if="row.group && groupStats[row.group.id]" class="mt-1 flex gap-3 text-xs text-gray-500 dark:text-dark-400">
-                <span>5h: <span class="font-medium text-gray-700 dark:text-dark-200">${{ groupStats[row.group.id].actual_cost_5h.toFixed(4) }}</span></span>
-                <span>7d: <span class="font-medium text-gray-700 dark:text-dark-200">${{ groupStats[row.group.id].actual_cost_7d.toFixed(4) }}</span></span>
-              </div>
             </div>
           </template>
 
@@ -1059,7 +1054,6 @@ import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 
 const { t } = useI18n()
 import { keysAPI, authAPI, usageAPI, userGroupsAPI } from '@/api'
-import type { GroupWindowStats } from '@/api/groups'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 	import DataTable from '@/components/common/DataTable.vue'
@@ -1126,8 +1120,6 @@ const now = ref(new Date())
 let resetTimer: ReturnType<typeof setInterval> | null = null
 const usageStats = ref<Record<string, BatchApiKeyUsageStats>>({})
 const userGroupRates = ref<Record<number, number>>({})
-const groupStats = ref<Record<number, GroupWindowStats>>({})
-
 const pagination = ref({
   page: 1,
   page_size: getPersistedPageSize(),
@@ -1330,19 +1322,6 @@ const loadApiKeys = async () => {
         }
       }
 
-      // Load group stats for all unique groups in the current page
-      const uniqueGroupIds = [...new Set(response.items.filter(k => k.group?.id).map(k => k.group!.id))]
-      if (uniqueGroupIds.length > 0) {
-        const results = await Promise.allSettled(uniqueGroupIds.map(id => userGroupsAPI.getGroupStats(id)))
-        if (signal.aborted) return
-        const newGroupStats: Record<number, GroupWindowStats> = {}
-        results.forEach((result, idx) => {
-          if (result.status === 'fulfilled') {
-            newGroupStats[uniqueGroupIds[idx]] = result.value
-          }
-        })
-        groupStats.value = newGroupStats
-      }
     }
   } catch (error) {
     if (isAbortError(error)) {
