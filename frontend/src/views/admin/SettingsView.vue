@@ -6477,6 +6477,11 @@ type SettingsForm = Omit<
   google_oauth_client_secret: string;
   force_email_on_third_party_signup: boolean;
   openai_advanced_scheduler_enabled: boolean;
+  feishu_webhook_enabled: boolean;
+  feishu_webhook_url: string;
+  feishu_webhook_cooldown_minutes: number;
+  feishu_webhook_notify_balance: boolean;
+  feishu_webhook_notify_account: boolean;
 };
 
 const form = reactive<SettingsForm>({

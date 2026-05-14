@@ -92,7 +92,7 @@ const loadGroupStats = async () => {
     const results = await Promise.allSettled([...seen.keys()].map(id => userGroupsAPI.getGroupStats(id)))
     const list: GroupStatDisplay[] = []
     let i = 0
-    for (const [id, name] of seen) {
+    for (const [_, name] of seen) {
       const r = results[i++]
       if (r.status === 'fulfilled') list.push({ ...r.value, group_name: name })
     }

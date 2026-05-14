@@ -528,6 +528,13 @@ export interface SystemSettings {
 
   // OpenAI fast/flex policy
   openai_fast_policy_settings?: OpenAIFastPolicySettings;
+
+  // Feishu Webhook notification
+  feishu_webhook_enabled: boolean;
+  feishu_webhook_url: string;
+  feishu_webhook_cooldown_minutes: number;
+  feishu_webhook_notify_balance: boolean;
+  feishu_webhook_notify_account: boolean;
 }
 
 export interface UpdateSettingsRequest {
@@ -723,6 +730,13 @@ export interface UpdateSettingsRequest {
 
   // OpenAI fast/flex policy
   openai_fast_policy_settings?: OpenAIFastPolicySettings;
+
+  // Feishu Webhook notification
+  feishu_webhook_enabled?: boolean;
+  feishu_webhook_url?: string;
+  feishu_webhook_cooldown_minutes?: number;
+  feishu_webhook_notify_balance?: boolean;
+  feishu_webhook_notify_account?: boolean;
 }
 
 /**
