@@ -15,6 +15,7 @@
 - [订阅配额系统](#订阅配额系统)
 - [通知告警系统](#通知告警系统)
 - [功能全景总结](#功能全景总结)
+- [扩展设计](#扩展设计)
 
 ---
 
@@ -401,3 +402,13 @@ flowchart TD
 | **通知告警** | `service/balance_notify_service.go`<br/>`service/feishu_webhook_service.go` | 邮件 + 飞书双通道、冷却防刷 |
 | **管理后台** | `frontend/src/views/admin/` | 全局配置、实时仪表盘、分组账号用量卡片 |
 | **路由注册** | `server/routes/gateway.go`<br/>`server/routes/admin.go` | 网关路由、管理 API、用户 API |
+
+---
+
+## 扩展设计
+
+以下模块为独立设计文档，描述尚未实现或待规划的功能：
+
+| 功能 | 文档 | 说明 |
+|------|------|------|
+| **对话内容记录** | [CONVERSATION_LOG_DESIGN.md](./CONVERSATION_LOG_DESIGN.md) | 可选地记录用户与 AI 的完整对话内容，用于调试、审核与合规留存 |
