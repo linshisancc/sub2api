@@ -619,8 +619,11 @@ export default {
     checkDetailedLogs: 'Check detailed usage logs',
     redeemCode: 'Redeem Code',
     addBalanceWithCode: 'Add balance with a code',
-    groupStats: {
-      title: 'Group Consumption'
+    groupAccounts: {
+      title: 'Group Account Usage',
+      groups: 'groups',
+      empty: 'No groups found',
+      noAccounts: 'No active accounts'
     }
   },
 
