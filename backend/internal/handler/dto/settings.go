@@ -208,6 +208,13 @@ type SystemSettings struct {
 	AccountQuotaNotifyEnabled   bool               `json:"account_quota_notify_enabled"`
 	AccountQuotaNotifyEmails    []NotifyEmailEntry `json:"account_quota_notify_emails"`
 
+	// Feishu Webhook Notification
+	FeishuWebhookEnabled         bool   `json:"feishu_webhook_enabled"`
+	FeishuWebhookURL             string `json:"feishu_webhook_url"`
+	FeishuWebhookCooldownMinutes int    `json:"feishu_webhook_cooldown_minutes"`
+	FeishuWebhookNotifyBalance   bool   `json:"feishu_webhook_notify_balance"`
+	FeishuWebhookNotifyAccount   bool   `json:"feishu_webhook_notify_account"`
+
 	// Channel Monitor feature switch
 	ChannelMonitorEnabled                bool `json:"channel_monitor_enabled"`
 	ChannelMonitorDefaultIntervalSeconds int  `json:"channel_monitor_default_interval_seconds"`

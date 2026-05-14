@@ -416,3 +416,39 @@ func (h *UsageHandler) DashboardAPIKeysUsage(c *gin.Context) {
 
 	response.Success(c, gin.H{"stats": stats})
 }
+
+// GetGroupStats returns 5h/7d aggregated usage for a group the user has access to.
+// GET /api/v1/groups/:id/stats
+func (h *UsageHandler) GetGroupStats(c *gin.Context) {
+	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+
+	groupIDStr := c.Param("id")
+	groupID, err := strconv.ParseInt(groupIDStr, 10, 64)
+	if err != nil || groupID <= 0 {
+		response.BadRequest(c, "Invalid group ID")
+		return
+	}
+
+	// Security: verify the user owns at least one API key in this group
+	keys, _, err := h.apiKeyService.List(c.Request.Context(), subject.UserID, pagination.PaginationParams{Page: 1, PageSize: 1}, service.APIKeyListFilters{GroupID: &groupID})
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	if len(keys) == 0 {
+		response.Forbidden(c, "Not authorized to access this group's stats")
+		return
+	}
+
+	stats, err := h.usageService.GetGroupWindowStats(c.Request.Context(), groupID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	response.Success(c, stats)
+}

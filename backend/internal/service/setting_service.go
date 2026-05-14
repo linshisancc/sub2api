@@ -1662,6 +1662,15 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	updates[SettingKeyAccountQuotaNotifyEnabled] = strconv.FormatBool(settings.AccountQuotaNotifyEnabled)
 	updates[SettingKeyAccountQuotaNotifyEmails] = MarshalNotifyEmails(settings.AccountQuotaNotifyEmails)
 
+	// Feishu Webhook notification
+	updates[SettingKeyFeishuWebhookEnabled] = strconv.FormatBool(settings.FeishuWebhookEnabled)
+	updates[SettingKeyFeishuWebhookURL] = settings.FeishuWebhookURL
+	updates[SettingKeyFeishuWebhookNotifyBalance] = strconv.FormatBool(settings.FeishuWebhookNotifyBalance)
+	updates[SettingKeyFeishuWebhookNotifyAccount] = strconv.FormatBool(settings.FeishuWebhookNotifyAccount)
+	if settings.FeishuWebhookCooldownMinutes > 0 {
+		updates[SettingKeyFeishuWebhookCooldownMinutes] = strconv.Itoa(settings.FeishuWebhookCooldownMinutes)
+	}
+
 	return updates, nil
 }
 
@@ -2869,6 +2878,17 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 	}
 	if result.AccountQuotaNotifyEmails == nil {
 		result.AccountQuotaNotifyEmails = []NotifyEmailEntry{}
+	}
+
+	// Feishu Webhook notification
+	result.FeishuWebhookEnabled = settings[SettingKeyFeishuWebhookEnabled] == "true"
+	result.FeishuWebhookURL = settings[SettingKeyFeishuWebhookURL]
+	result.FeishuWebhookNotifyBalance = settings[SettingKeyFeishuWebhookNotifyBalance] == "true"
+	result.FeishuWebhookNotifyAccount = settings[SettingKeyFeishuWebhookNotifyAccount] == "true"
+	if v, err := strconv.Atoi(settings[SettingKeyFeishuWebhookCooldownMinutes]); err == nil && v > 0 {
+		result.FeishuWebhookCooldownMinutes = v
+	} else {
+		result.FeishuWebhookCooldownMinutes = feishuDefaultCooldownMinutes
 	}
 
 	return result

@@ -315,6 +315,42 @@ func (s *UsageService) GetUserModelStats(ctx context.Context, userID int64, star
 	return stats, nil
 }
 
+// GroupWindowStats holds aggregated usage for 5h and 7d windows.
+type GroupWindowStats struct {
+	GroupID    int64   `json:"group_id"`
+	Requests5h int64   `json:"requests_5h"`
+	ActualCost5h float64 `json:"actual_cost_5h"`
+	Requests7d int64   `json:"requests_7d"`
+	ActualCost7d float64 `json:"actual_cost_7d"`
+}
+
+// GetGroupWindowStats returns 5h and 7d aggregated usage stats for a group.
+func (s *UsageService) GetGroupWindowStats(ctx context.Context, groupID int64) (*GroupWindowStats, error) {
+	now := time.Now()
+	start5h := now.Add(-5 * time.Hour)
+	start7d := now.Add(-7 * 24 * time.Hour)
+
+	stats5h, err := s.usageRepo.GetGroupStatsWithFilters(ctx, start5h, now, 0, 0, 0, groupID, nil, nil, nil)
+	if err != nil {
+		return nil, fmt.Errorf("get group 5h stats: %w", err)
+	}
+	stats7d, err := s.usageRepo.GetGroupStatsWithFilters(ctx, start7d, now, 0, 0, 0, groupID, nil, nil, nil)
+	if err != nil {
+		return nil, fmt.Errorf("get group 7d stats: %w", err)
+	}
+
+	result := &GroupWindowStats{GroupID: groupID}
+	for _, s := range stats5h {
+		result.Requests5h += s.Requests
+		result.ActualCost5h += s.ActualCost
+	}
+	for _, s := range stats7d {
+		result.Requests7d += s.Requests
+		result.ActualCost7d += s.ActualCost
+	}
+	return result, nil
+}
+
 // GetAPIKeyModelStats returns per-model usage stats for a specific API Key.
 func (s *UsageService) GetAPIKeyModelStats(ctx context.Context, apiKeyID int64, startTime, endTime time.Time) ([]usagestats.ModelStat, error) {
 	stats, err := s.usageRepo.GetModelStatsWithFilters(ctx, startTime, endTime, 0, apiKeyID, 0, 0, nil, nil, nil)

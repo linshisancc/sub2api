@@ -516,6 +516,7 @@ var ProviderSet = wire.NewSet(
 	ProvidePaymentConfigService,
 	NewPaymentService,
 	ProvidePaymentOrderExpiryService,
+	ProvideFeishuWebhookService,
 	ProvideBalanceNotifyService,
 	ProvideChannelMonitorService,
 	ProvideChannelMonitorRunner,
@@ -528,9 +529,14 @@ func ProvidePaymentConfigService(entClient *dbent.Client, settingRepo SettingRep
 	return NewPaymentConfigService(entClient, settingRepo, []byte(key))
 }
 
+// ProvideFeishuWebhookService creates FeishuWebhookService.
+func ProvideFeishuWebhookService(settingRepo SettingRepository, redisClient *redis.Client) *FeishuWebhookService {
+	return NewFeishuWebhookService(settingRepo, redisClient)
+}
+
 // ProvideBalanceNotifyService creates BalanceNotifyService
-func ProvideBalanceNotifyService(emailService *EmailService, settingRepo SettingRepository, accountRepo AccountRepository) *BalanceNotifyService {
-	return NewBalanceNotifyService(emailService, settingRepo, accountRepo)
+func ProvideBalanceNotifyService(emailService *EmailService, settingRepo SettingRepository, accountRepo AccountRepository, feishuWebhook *FeishuWebhookService) *BalanceNotifyService {
+	return NewBalanceNotifyService(emailService, settingRepo, accountRepo, feishuWebhook)
 }
 
 // ProvidePaymentOrderExpiryService creates and starts PaymentOrderExpiryService.

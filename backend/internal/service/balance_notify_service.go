@@ -39,17 +39,19 @@ type AccountQuotaReader interface {
 
 // BalanceNotifyService handles balance and quota threshold notifications.
 type BalanceNotifyService struct {
-	emailService *EmailService
-	settingRepo  SettingRepository
-	accountRepo  AccountQuotaReader
+	emailService   *EmailService
+	settingRepo    SettingRepository
+	accountRepo    AccountQuotaReader
+	feishuWebhook  *FeishuWebhookService
 }
 
 // NewBalanceNotifyService creates a new BalanceNotifyService.
-func NewBalanceNotifyService(emailService *EmailService, settingRepo SettingRepository, accountRepo AccountQuotaReader) *BalanceNotifyService {
+func NewBalanceNotifyService(emailService *EmailService, settingRepo SettingRepository, accountRepo AccountQuotaReader, feishuWebhook *FeishuWebhookService) *BalanceNotifyService {
 	return &BalanceNotifyService{
-		emailService: emailService,
-		settingRepo:  settingRepo,
-		accountRepo:  accountRepo,
+		emailService:  emailService,
+		settingRepo:   settingRepo,
+		accountRepo:   accountRepo,
+		feishuWebhook: feishuWebhook,
 	}
 }
 
@@ -126,6 +128,11 @@ func (s *BalanceNotifyService) dispatchBalanceLowEmail(ctx context.Context, user
 			}
 		}()
 		s.sendBalanceLowEmails(recipients, user.Username, user.Email, newBalance, threshold, siteName, rechargeURL)
+		if s.feishuWebhook != nil {
+			title := "用户余额不足"
+			content := fmt.Sprintf("用户：%s（%s）\n当前余额：$%.4f\n告警阈值：$%.4f", user.Username, user.Email, newBalance, threshold)
+			s.feishuWebhook.Send(ctx, "balance_low", strconv.FormatInt(user.ID, 10), title, content)
+		}
 	}()
 }
 
@@ -232,7 +239,7 @@ func (s *BalanceNotifyService) checkQuotaDimCrossings(account *Account, dims []q
 	}
 }
 
-// asyncSendQuotaAlert sends quota alert email in a goroutine with panic recovery.
+// asyncSendQuotaAlert sends quota alert email and Feishu webhook in a goroutine with panic recovery.
 func (s *BalanceNotifyService) asyncSendQuotaAlert(adminEmails []string, accountID int64, accountName, platform string, dim quotaDim, newUsed, effectiveThreshold float64, siteName string) {
 	go func() {
 		defer func() {
@@ -241,6 +248,13 @@ func (s *BalanceNotifyService) asyncSendQuotaAlert(adminEmails []string, account
 			}
 		}()
 		s.sendQuotaAlertEmails(adminEmails, accountID, accountName, platform, dim, newUsed, siteName)
+		if s.feishuWebhook != nil {
+			dimLabel := quotaDimLabels[dim.name]
+			title := fmt.Sprintf("账号额度告警（%s）", dimLabel)
+			content := fmt.Sprintf("账号：%s\n平台：%s\n维度：%s\n当前用量：$%.4f / 告警阈值：$%.4f",
+				accountName, platform, dimLabel, newUsed, effectiveThreshold)
+			s.feishuWebhook.Send(context.Background(), "account_quota", strconv.FormatInt(accountID, 10), title, content)
+		}
 	}()
 }
 
