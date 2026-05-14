@@ -158,6 +158,20 @@ export async function getGroupStats(params?: GroupStatsParams): Promise<GroupSta
   return data
 }
 
+export interface GroupWindowStat {
+  group_id: number
+  group_name: string
+  requests_5h: number
+  actual_cost_5h: number
+  requests_7d: number
+  actual_cost_7d: number
+}
+
+export async function getGroupWindowStats(): Promise<{ groups: GroupWindowStat[] }> {
+  const { data } = await apiClient.get<{ groups: GroupWindowStat[] }>('/admin/dashboard/groups/windowed')
+  return data
+}
+
 export interface UserBreakdownParams {
   start_date?: string
   end_date?: string
@@ -321,6 +335,7 @@ export const dashboardAPI = {
   getUsageTrend,
   getModelStats,
   getGroupStats,
+  getGroupWindowStats,
   getSnapshotV2,
   getApiKeyUsageTrend,
   getUserUsageTrend,

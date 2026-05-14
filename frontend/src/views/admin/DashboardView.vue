@@ -216,6 +216,9 @@
           </div>
         </div>
 
+        <!-- Group Stats Card -->
+        <GroupStatsCard v-if="groupStats.length > 0" :items="groupStats" />
+
         <!-- Charts Section -->
         <div class="space-y-6">
           <!-- Date Range Filter -->
@@ -300,6 +303,7 @@ import { useAppStore } from '@/stores/app'
 
 const { t } = useI18n()
 import { adminAPI } from '@/api/admin'
+import type { GroupWindowStat } from '@/api/admin/dashboard'
 import type {
   DashboardStats,
   TrendDataPoint,
@@ -309,6 +313,7 @@ import type {
 } from '@/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
+import GroupStatsCard from '@/components/dashboard/GroupStatsCard.vue'
 import Icon from '@/components/icons/Icon.vue'
 import DateRangePicker from '@/components/common/DateRangePicker.vue'
 import Select from '@/components/common/Select.vue'
@@ -355,6 +360,7 @@ const rankingItems = ref<UserSpendingRankingItem[]>([])
 const rankingTotalActualCost = ref(0)
 const rankingTotalRequests = ref(0)
 const rankingTotalTokens = ref(0)
+const groupStats = ref<GroupWindowStat[]>([])
 let chartLoadSeq = 0
 let usersTrendLoadSeq = 0
 let rankingLoadSeq = 0
@@ -676,11 +682,21 @@ const loadUserSpendingRanking = async () => {
   }
 }
 
+const loadGroupStats = async () => {
+  try {
+    const res = await adminAPI.dashboard.getGroupWindowStats()
+    groupStats.value = res.groups || []
+  } catch (e) {
+    console.error('Failed to load group window stats:', e)
+  }
+}
+
 const loadDashboardStats = async () => {
   await Promise.all([
     loadDashboardSnapshot(true),
     loadUsersTrend(),
-    loadUserSpendingRanking()
+    loadUserSpendingRanking(),
+    loadGroupStats()
   ])
 }
 

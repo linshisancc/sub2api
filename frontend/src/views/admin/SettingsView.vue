@@ -6041,7 +6041,11 @@
             </div>
           </div>
 
-          <!-- Feishu Webhook -->
+        </div>
+        <!-- /Tab: Email -->
+
+        <!-- Tab: Feishu -->
+        <div v-show="activeTab === 'feishu'" class="space-y-6">
           <div class="settings-section">
             <div class="settings-section-header">
               <h3 class="settings-section-title">飞书 Webhook 通知</h3>
@@ -6089,7 +6093,7 @@
             </div>
           </div>
         </div>
-        <!-- /Tab: Email -->
+        <!-- /Tab: Feishu -->
 
         <!-- Tab: Backup -->
         <div v-show="activeTab === 'backup'">
@@ -6253,6 +6257,7 @@ type SettingsTab =
   | "gateway"
   | "payment"
   | "email"
+  | "feishu"
   | "backup";
 const activeTab = ref<SettingsTab>("general");
 const settingsTabs = [
@@ -6264,6 +6269,7 @@ const settingsTabs = [
   { key: "gateway" as SettingsTab, icon: "server" as const },
   { key: "payment" as SettingsTab, icon: "creditCard" as const },
   { key: "email" as SettingsTab, icon: "mail" as const },
+  { key: "feishu" as SettingsTab, icon: "chat" as const },
   { key: "backup" as SettingsTab, icon: "database" as const },
 ];
 
