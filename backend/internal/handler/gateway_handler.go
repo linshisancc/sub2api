@@ -52,6 +52,7 @@ type GatewayHandler struct {
 	maxAccountSwitchesGemini  int
 	cfg                       *config.Config
 	settingService            *service.SettingService
+	rateLimitStatusCache      *service.RateLimitStatusCache
 }
 
 // NewGatewayHandler creates a new GatewayHandler
@@ -70,6 +71,7 @@ func NewGatewayHandler(
 	userMsgQueueService *service.UserMessageQueueService,
 	cfg *config.Config,
 	settingService *service.SettingService,
+	rateLimitStatusCache *service.RateLimitStatusCache,
 ) *GatewayHandler {
 	pingInterval := time.Duration(0)
 	maxAccountSwitches := 10
@@ -107,6 +109,7 @@ func NewGatewayHandler(
 		maxAccountSwitchesGemini:  maxAccountSwitchesGemini,
 		cfg:                       cfg,
 		settingService:            settingService,
+		rateLimitStatusCache:      rateLimitStatusCache,
 	}
 }
 
@@ -262,6 +265,21 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 	// 设置请求所属分组 ID（用于渠道级功能判断，如 WebSearch 模拟）
 	parsedReq.GroupID = apiKey.GroupID
 
+	// 限流状态缓存前置检查：如果该 group+model 已知全局限流中，直接返回 503
+	if apiKey.GroupID != nil && h.rateLimitStatusCache != nil {
+		rlPlatform := ""
+		if apiKey.Group != nil {
+			rlPlatform = apiKey.Group.Platform
+		}
+		if limited, retryAfter := h.rateLimitStatusCache.Get(*apiKey.GroupID, reqModel, rlPlatform); limited {
+			c.Set(service.OpsSkipErrorLogKey, true)
+			c.Header("Retry-After", strconv.Itoa(retryAfter))
+			h.handleStreamingAwareError(c, http.StatusServiceUnavailable, "rate_limit_error",
+				"All upstream accounts are rate-limited, retry after "+strconv.Itoa(retryAfter)+" seconds", streamStarted)
+			return
+		}
+	}
+
 	// 计算粘性会话hash
 	parsedReq.SessionContext = &service.SessionContext{
 		ClientIP:  ip.GetClientIP(c),
@@ -331,6 +349,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 						zap.String("platform", platform),
 						zap.Error(err),
 					)
+					h.setRateLimitCacheForNoAccounts(c, apiKey.GroupID, reqModel, platform)
 					h.handleStreamingAwareError(c, http.StatusServiceUnavailable, "api_error", "No available accounts: "+err.Error(), streamStarted)
 					return
 				}
@@ -572,6 +591,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 						zap.String("platform", platform),
 						zap.Bool("fallback_used", fallbackUsed),
 						zap.Error(err),
+					h.setRateLimitCacheForNoAccounts(c, apiKey.GroupID, reqModel, platform)
 					)
 					h.handleStreamingAwareError(c, http.StatusServiceUnavailable, "api_error", "No available accounts: "+err.Error(), streamStarted)
 					return
@@ -1311,6 +1331,24 @@ func (h *GatewayHandler) handleConcurrencyError(c *gin.Context, err error, slotT
 
 func (h *GatewayHandler) handleFailoverExhausted(c *gin.Context, failoverErr *service.UpstreamFailoverError, platform string, streamStarted bool) {
 	statusCode := failoverErr.StatusCode
+
+	// 当所有账号因限流耗尽时，设置限流状态缓存
+	if statusCode == 429 && h.rateLimitStatusCache != nil {
+		if apiKey, ok := middleware2.GetAPIKeyFromContext(c); ok && apiKey.GroupID != nil {
+			if model, ok := c.Get(opsModelKey); ok {
+				if modelName, ok := model.(string); ok && modelName != "" {
+					retryAfter := 60 // 默认 60 秒
+					if resetStr := c.Writer.Header().Get("Retry-After"); resetStr != "" {
+						if v, err := strconv.Atoi(resetStr); err == nil && v > 0 {
+							retryAfter = v
+						}
+					}
+					h.rateLimitStatusCache.Set(*apiKey.GroupID, modelName, platform,
+						time.Now().Add(time.Duration(retryAfter)*time.Second), retryAfter)
+				}
+			}
+		}
+	}
 	responseBody := failoverErr.ResponseBody
 
 	// 先检查透传规则
@@ -1871,4 +1909,16 @@ func (h *GatewayHandler) getUserMsgQueueMode(account *service.Account, parsed *s
 		mode = h.cfg.Gateway.UserMessageQueue.GetEffectiveMode()
 	}
 	return mode
+}
+
+// setRateLimitCacheForNoAccounts sets the rate limit status cache when all accounts
+// are unavailable (likely all rate-limited). This is called when SelectAccountWithLoadAwareness
+// returns an error with no failed account IDs, meaning no accounts were even candidates.
+func (h *GatewayHandler) setRateLimitCacheForNoAccounts(c *gin.Context, groupID *int64, model, platform string) {
+	if h.rateLimitStatusCache == nil || groupID == nil || model == "" {
+		return
+	}
+	retryAfter := 60
+	h.rateLimitStatusCache.Set(*groupID, model, platform,
+		time.Now().Add(time.Duration(retryAfter)*time.Second), retryAfter)
 }

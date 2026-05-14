@@ -725,6 +725,13 @@ func OpsErrorLoggerMiddleware(ops *service.OpsService) gin.HandlerFunc {
 				}
 			}
 
+			// Skip logging if the rate limit cache pre-check set the skip flag.
+			if v, ok := c.Get(service.OpsSkipErrorLogKey); ok {
+				if skip, _ := v.(bool); skip {
+					return
+				}
+			}
+
 			enqueueOpsErrorLog(ops, entry)
 			return
 		}
@@ -734,6 +741,13 @@ func OpsErrorLoggerMiddleware(ops *service.OpsService) gin.HandlerFunc {
 
 		// Skip logging if a passthrough rule with skip_monitoring=true matched.
 		if v, ok := c.Get(service.OpsSkipPassthroughKey); ok {
+			if skip, _ := v.(bool); skip {
+				return
+			}
+		}
+
+		// Skip logging if the rate limit cache pre-check set the skip flag.
+		if v, ok := c.Get(service.OpsSkipErrorLogKey); ok {
 			if skip, _ := v.(bool); skip {
 				return
 			}

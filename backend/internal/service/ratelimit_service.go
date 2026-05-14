@@ -30,6 +30,7 @@ type RateLimitService struct {
 	tokenCacheInvalidator TokenCacheInvalidator
 	usageCacheMu          sync.RWMutex
 	usageCache            map[int64]*geminiUsageCacheEntry
+	statusCache           *RateLimitStatusCache
 }
 
 // SuccessfulTestRecoveryResult 表示测试成功后恢复了哪些运行时状态。
@@ -96,6 +97,11 @@ func (s *RateLimitService) SetSettingService(settingService *SettingService) {
 // SetTokenCacheInvalidator 设置 token 缓存清理器（可选依赖）
 func (s *RateLimitService) SetTokenCacheInvalidator(invalidator TokenCacheInvalidator) {
 	s.tokenCacheInvalidator = invalidator
+}
+
+// SetStatusCache 设置限流状态缓存（可选依赖）
+func (s *RateLimitService) SetStatusCache(cache *RateLimitStatusCache) {
+	s.statusCache = cache
 }
 
 // ErrorPolicyResult 表示错误策略检查的结果
@@ -1449,6 +1455,13 @@ func (s *RateLimitService) RecoverAccountState(ctx context.Context, accountID in
 	}
 	if result.ClearedError || result.ClearedRateLimit {
 		s.ResetOpenAI403Counter(ctx, accountID)
+	}
+
+	// 清除限流状态缓存中该账号所属分组的条目
+	if result.ClearedRateLimit && s.statusCache != nil {
+		for _, gid := range account.GroupIDs {
+			s.statusCache.ClearForGroup(gid)
+		}
 	}
 
 	return result, nil
