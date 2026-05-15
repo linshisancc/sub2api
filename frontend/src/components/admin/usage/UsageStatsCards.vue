@@ -17,7 +17,8 @@
         <p class="text-xl font-bold">{{ formatTokens(stats?.total_tokens || 0) }}</p>
         <p class="text-xs text-gray-500">
           {{ t('usage.in') }}: {{ formatTokens(stats?.total_input_tokens || 0) }} /
-          {{ t('usage.out') }}: {{ formatTokens(stats?.total_output_tokens || 0) }}
+          {{ t('usage.out') }}: {{ formatTokens(stats?.total_output_tokens || 0) }} /
+          {{ t('usage.cache') }}: {{ formatTokens(stats?.total_cache_tokens || 0) }}
         </p>
       </div>
     </div>
