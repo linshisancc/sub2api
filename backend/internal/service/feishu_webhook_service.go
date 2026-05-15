@@ -69,6 +69,10 @@ func (s *FeishuWebhookService) Send(ctx context.Context, alertType, identifier, 
 		if settings[SettingKeyFeishuWebhookNotifyAccount] != "true" {
 			return
 		}
+	case "account_rate_limited":
+		if settings[SettingKeyFeishuWebhookNotifyAccount] != "true" {
+			return
+		}
 	}
 
 	cooldownMinutes := feishuDefaultCooldownMinutes
@@ -85,6 +89,54 @@ func (s *FeishuWebhookService) Send(ctx context.Context, alertType, identifier, 
 
 	if err := s.post(webhookURL, title, content); err != nil {
 		slog.Error("feishu_webhook: send failed", "error", err, "alert_type", alertType)
+	}
+}
+
+// SendAccountRateLimited delivers a Feishu alert when an account enters the rate-limited state.
+func (s *FeishuWebhookService) SendAccountRateLimited(ctx context.Context, account *Account, resetAt time.Time) {
+	if account == nil {
+		return
+	}
+	title := "账号限流告警"
+	content := fmt.Sprintf("账号：%s\n平台：%s\n状态：限流中\n预计恢复时间：%s",
+		account.Name, account.Platform, resetAt.Format("2006-01-02 15:04:05"))
+	s.Send(ctx, "account_rate_limited", strconv.FormatInt(account.ID, 10), title, content)
+}
+
+// SendOpsAlert delivers an Ops monitoring alert to the Feishu webhook.
+// Unlike Send, it bypasses the per-type toggle and the Redis cooldown — the Ops
+// alert module already owns its own cooldown/sustained/silencing throttling.
+func (s *FeishuWebhookService) SendOpsAlert(ctx context.Context, rule *OpsAlertRule, event *OpsAlertEvent) {
+	if rule == nil || event == nil {
+		return
+	}
+	settings, err := s.settingRepo.GetMultiple(ctx, []string{
+		SettingKeyFeishuWebhookEnabled,
+		SettingKeyFeishuWebhookURL,
+	})
+	if err != nil {
+		slog.Warn("feishu_webhook: failed to load settings for ops alert", "error", err)
+		return
+	}
+	if settings[SettingKeyFeishuWebhookEnabled] != "true" {
+		return
+	}
+	webhookURL := settings[SettingKeyFeishuWebhookURL]
+	if webhookURL == "" {
+		return
+	}
+
+	value := "-"
+	if event.MetricValue != nil {
+		value = fmt.Sprintf("%.2f", *event.MetricValue)
+	}
+	title := fmt.Sprintf("运维告警（%s）", rule.Severity)
+	content := fmt.Sprintf("规则：%s\n指标：%s %s %.2f（当前 %s）\n状态：%s\n触发时间：%s\n说明：%s",
+		rule.Name, rule.MetricType, rule.Operator, rule.Threshold, value,
+		event.Status, event.FiredAt.Format("2006-01-02 15:04:05"), event.Description)
+
+	if err := s.post(webhookURL, title, content); err != nil {
+		slog.Error("feishu_webhook: ops alert send failed", "error", err, "rule_id", rule.ID)
 	}
 }
 

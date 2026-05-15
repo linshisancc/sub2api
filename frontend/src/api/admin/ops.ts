@@ -787,6 +787,7 @@ export interface EmailNotificationConfig {
     rate_limit_per_hour: number
     batching_window_seconds: number
     include_resolved_alerts: boolean
+    feishu_enabled: boolean
   }
   report: {
     enabled: boolean

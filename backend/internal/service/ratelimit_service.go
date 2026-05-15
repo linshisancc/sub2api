@@ -28,6 +28,7 @@ type RateLimitService struct {
 	openAI403CounterCache OpenAI403CounterCache
 	settingService        *SettingService
 	tokenCacheInvalidator TokenCacheInvalidator
+	feishuWebhook         *FeishuWebhookService
 	usageCacheMu          sync.RWMutex
 	usageCache            map[int64]*geminiUsageCacheEntry
 }
@@ -96,6 +97,26 @@ func (s *RateLimitService) SetSettingService(settingService *SettingService) {
 // SetTokenCacheInvalidator 设置 token 缓存清理器（可选依赖）
 func (s *RateLimitService) SetTokenCacheInvalidator(invalidator TokenCacheInvalidator) {
 	s.tokenCacheInvalidator = invalidator
+}
+
+// SetFeishuWebhookService 设置飞书 Webhook 服务（可选依赖）
+func (s *RateLimitService) SetFeishuWebhookService(svc *FeishuWebhookService) {
+	s.feishuWebhook = svc
+}
+
+// NotifyAccountRateLimited 异步推送账号限流飞书告警，不阻塞 429 处理路径。
+func (s *RateLimitService) NotifyAccountRateLimited(account *Account, resetAt time.Time) {
+	if s.feishuWebhook == nil || account == nil {
+		return
+	}
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("panic in account rate-limited notification", "recover", r)
+			}
+		}()
+		s.feishuWebhook.SendAccountRateLimited(context.Background(), account, resetAt)
+	}()
 }
 
 // ErrorPolicyResult 表示错误策略检查的结果
@@ -832,6 +853,7 @@ func (s *RateLimitService) handle429(ctx context.Context, account *Account, head
 				return
 			}
 			slog.Info("openai_account_rate_limited", "account_id", account.ID, "reset_at", *resetAt)
+			s.NotifyAccountRateLimited(account, *resetAt)
 			return
 		}
 	}
@@ -854,6 +876,7 @@ func (s *RateLimitService) handle429(ctx context.Context, account *Account, head
 		}
 
 		slog.Info("anthropic_account_rate_limited", "account_id", account.ID, "reset_at", result.resetAt, "reset_in", time.Until(result.resetAt).Truncate(time.Second))
+		s.NotifyAccountRateLimited(account, result.resetAt)
 		return
 	}
 
@@ -872,6 +895,7 @@ func (s *RateLimitService) handle429(ctx context.Context, account *Account, head
 					return
 				}
 				slog.Info("account_rate_limited", "account_id", account.ID, "platform", account.Platform, "reset_at", resetTime, "reset_in", time.Until(resetTime).Truncate(time.Second))
+				s.NotifyAccountRateLimited(account, resetTime)
 				return
 			}
 		case PlatformGemini, PlatformAntigravity:
@@ -883,6 +907,7 @@ func (s *RateLimitService) handle429(ctx context.Context, account *Account, head
 					return
 				}
 				slog.Info("account_rate_limited", "account_id", account.ID, "platform", account.Platform, "reset_at", resetTime, "reset_in", time.Until(resetTime).Truncate(time.Second))
+				s.NotifyAccountRateLimited(account, resetTime)
 				return
 			}
 		}
@@ -926,6 +951,7 @@ func (s *RateLimitService) handle429(ctx context.Context, account *Account, head
 	}
 
 	slog.Info("account_rate_limited", "account_id", account.ID, "reset_at", resetAt)
+	s.NotifyAccountRateLimited(account, resetAt)
 }
 
 func (s *RateLimitService) apply429FallbackRateLimit(ctx context.Context, account *Account, reason string) {

@@ -2931,6 +2931,8 @@ func (s *AntigravityGatewayService) handleUpstreamError(
 			prefix, account.ID, ra.Format("15:04:05"), time.Until(ra).Truncate(time.Second))
 		if err := s.accountRepo.SetRateLimited(ctx, account.ID, ra); err != nil {
 			logger.LegacyPrintf("service.antigravity_gateway", "%s status=429 rate_limit_set_failed account=%d error=%v", prefix, account.ID, err)
+		} else if s.rateLimitService != nil {
+			s.rateLimitService.NotifyAccountRateLimited(account, ra)
 		}
 		return nil
 	}
