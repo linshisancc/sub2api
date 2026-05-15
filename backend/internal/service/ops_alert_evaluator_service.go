@@ -32,9 +32,10 @@ return 0
 `)
 
 type OpsAlertEvaluatorService struct {
-	opsService   *OpsService
-	opsRepo      OpsRepository
-	emailService *EmailService
+	opsService    *OpsService
+	opsRepo       OpsRepository
+	emailService  *EmailService
+	feishuWebhook *FeishuWebhookService
 
 	redisClient *redis.Client
 	cfg         *config.Config
@@ -65,14 +66,16 @@ func NewOpsAlertEvaluatorService(
 	opsService *OpsService,
 	opsRepo OpsRepository,
 	emailService *EmailService,
+	feishuWebhook *FeishuWebhookService,
 	redisClient *redis.Client,
 	cfg *config.Config,
 ) *OpsAlertEvaluatorService {
 	return &OpsAlertEvaluatorService{
-		opsService:   opsService,
-		opsRepo:      opsRepo,
-		emailService: emailService,
-		redisClient:  redisClient,
+		opsService:    opsService,
+		opsRepo:       opsRepo,
+		emailService:  emailService,
+		feishuWebhook: feishuWebhook,
+		redisClient:   redisClient,
 		cfg:          cfg,
 		instanceID:   uuid.NewString(),
 		ruleStates:   map[int64]*opsAlertRuleState{},
@@ -292,6 +295,7 @@ func (s *OpsAlertEvaluatorService) evaluateOnce(interval time.Duration) {
 				if s.maybeSendAlertEmail(ctx, runtimeCfg, rule, created) {
 					emailsSent++
 				}
+				s.maybeSendAlertFeishu(ctx, runtimeCfg, rule, created)
 			}
 			continue
 		}
@@ -697,6 +701,29 @@ func (s *OpsAlertEvaluatorService) maybeSendAlertEmail(ctx context.Context, runt
 		_ = s.opsRepo.UpdateAlertEventEmailSent(context.Background(), event.ID, true)
 	}
 	return anySent
+}
+
+// maybeSendAlertFeishu pushes the alert to Feishu when ops feishu notification is enabled.
+// It runs in parallel with maybeSendAlertEmail and reuses the same MinSeverity / silencing gates.
+func (s *OpsAlertEvaluatorService) maybeSendAlertFeishu(ctx context.Context, runtimeCfg *OpsAlertRuntimeSettings, rule *OpsAlertRule, event *OpsAlertEvent) {
+	if s == nil || s.feishuWebhook == nil || s.opsService == nil || event == nil || rule == nil {
+		return
+	}
+
+	emailCfg, err := s.opsService.GetEmailNotificationConfig(ctx)
+	if err != nil || emailCfg == nil || !emailCfg.Alert.FeishuEnabled {
+		return
+	}
+	if !shouldSendOpsAlertEmailByMinSeverity(strings.TrimSpace(emailCfg.Alert.MinSeverity), strings.TrimSpace(rule.Severity)) {
+		return
+	}
+	if runtimeCfg != nil && runtimeCfg.Silencing.Enabled {
+		if isOpsAlertSilenced(time.Now().UTC(), rule, event, runtimeCfg.Silencing) {
+			return
+		}
+	}
+
+	s.feishuWebhook.SendOpsAlert(ctx, rule, event)
 }
 
 func buildOpsAlertEmailBody(rule *OpsAlertRule, event *OpsAlertEvent) string {

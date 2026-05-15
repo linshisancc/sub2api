@@ -2842,12 +2842,18 @@ func (s *GeminiMessagesCompatService) handleGeminiUpstreamError(ctx context.Cont
 			}
 		}
 		_ = s.accountRepo.SetRateLimited(ctx, account.ID, ra)
+		if s.rateLimitService != nil {
+			s.rateLimitService.NotifyAccountRateLimited(account, ra)
+		}
 		return
 	}
 
 	// 使用解析到的重置时间
 	resetTime := time.Unix(*resetAt, 0)
 	_ = s.accountRepo.SetRateLimited(ctx, account.ID, resetTime)
+	if s.rateLimitService != nil {
+		s.rateLimitService.NotifyAccountRateLimited(account, resetTime)
+	}
 	logger.LegacyPrintf("service.gemini_messages_compat", "[Gemini 429] Account %d rate limited until %v (oauth_type=%s, tier=%s)",
 		account.ID, resetTime, oauthType, tierID)
 }
