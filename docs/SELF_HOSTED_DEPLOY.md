@@ -1,12 +1,12 @@
 # 自托管私有镜像部署指南
 
-本文档适用于：在服务器上从源码构建镜像并部署，不依赖 Docker Hub 的场景。
+本文档适用于：在本地构建镜像并推送到 Docker Hub，服务器直接拉取镜像运行，不在服务器上编译代码的场景。
 
 ---
 
 ## 目录
 
-- [前提：docker-compose.yml 已配置本地构建](#前提docker-composeyml-已配置本地构建)
+- [前提条件](#前提条件)
 - [首次部署](#首次部署)
 - [更新部署（新功能上线）](#更新部署新功能上线)
 - [一键部署脚本](#一键部署脚本)
@@ -14,37 +14,41 @@
 
 ---
 
-## 前提：docker-compose.yml 已配置本地构建
+## 前提条件
 
-`deploy/docker-compose.yml` 已将 `sub2api` 服务配置为本地构建模式（`image: sub2api:local` + `build:` 声明），无需手动修改，直接使用即可。
-
-如需确认，相关配置如下：
+- 本地已安装 Docker，并已登录 Docker Hub（`docker login`）
+- 服务器已安装 Docker，无需 Go 环境
+- `deploy/docker-compose.yml` 中 `sub2api` 服务的 `image` 已改为 Docker Hub 镜像地址，并删除 `build:` 块：
 
 ```yaml
 sub2api:
-  image: sub2api:local
-  build:
-    context: ..
-    dockerfile: deploy/Dockerfile
-    args:
-      GOPROXY: https://goproxy.cn,direct
-      GOSUMDB: sum.golang.google.cn
+  image: linshisancc/sub2api:latest
 ```
 
 ---
 
 ## 首次部署
 
+### 本地：构建并推送镜像
+
 ```bash
-# 1. 克隆代码并进入 deploy 目录
-cd /path/to/sub2api/deploy
+# 在项目根目录执行
+docker build -t linshisancc/sub2api:latest -f deploy/Dockerfile .
+docker push linshisancc/sub2api:latest
+```
+
+### 服务器：初始化并启动所有服务
+
+```bash
+# 1. 进入 deploy 目录
+cd ~/docker/sub2api
 
 # 2. 复制并配置环境变量
 cp .env.example .env
 # 编辑 .env，至少设置 POSTGRES_PASSWORD、JWT_SECRET、TOTP_ENCRYPTION_KEY
 
-# 3. 构建镜像并启动所有服务
-docker compose up -d --build
+# 3. 拉取镜像并启动所有服务
+docker compose up -d
 
 # 4. 查看启动日志
 docker compose logs -f sub2api
@@ -54,42 +58,41 @@ docker compose logs -f sub2api
 
 ## 更新部署（新功能上线）
 
-每次有新功能需要上线，流程如下：
+### 第一步：本地构建并推送新镜像
 
 ```bash
-# 1. 进入项目根目录，拉取最新代码
-cd /path/to/sub2api
-git pull
-
-# 2. 重新构建镜像
-cd deploy
-docker compose build sub2api
-
-# 3. 只重启 sub2api 容器（postgres 和 redis 保持运行）
-docker compose up -d --no-deps sub2api
-
-# 4. 观察启动日志确认正常
-docker compose logs -f sub2api
+# 在项目根目录执行
+docker build -t linshisancc/sub2api:latest -f deploy/Dockerfile .
+docker push linshisancc/sub2api:latest
 ```
 
-> `--no-deps` 确保只重启 sub2api，postgres 和 redis 不受影响。
+也可以同时打版本 tag，方便回滚：
+
+```bash
+docker build -t linshisancc/sub2api:v1.2.0 -t linshisancc/sub2api:latest -f deploy/Dockerfile .
+docker push linshisancc/sub2api:v1.2.0
+docker push linshisancc/sub2api:latest
+```
+
+### 第二步：服务器拉取并重启
+
+```bash
+cd ~/docker/sub2api
+docker compose pull sub2api
+docker compose up -d --no-deps sub2api
+docker compose logs -f --tail=50 sub2api
+```
+
+> `--no-deps` 确保只重启 sub2api，postgres 和 redis 不受影响，无需提前 `docker compose down`。
 
 ---
 
 ## 一键部署脚本
 
-`deploy/deploy.sh` 将上述步骤（git pull → 构建 → 重启）串成一条命令，适合日常更新使用。
-
-首次使用赋予执行权限：
+`deploy/deploy.sh` 将服务器侧的步骤（拉取镜像 → 重启）串成一条命令，本地推送完镜像后在服务器执行即可：
 
 ```bash
-chmod +x deploy/deploy.sh
-```
-
-之后每次更新执行：
-
-```bash
-bash deploy/deploy.sh
+bash ~/docker/sub2api/deploy.sh
 ```
 
 ---

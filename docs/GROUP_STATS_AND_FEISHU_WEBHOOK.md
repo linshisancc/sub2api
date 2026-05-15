@@ -15,13 +15,14 @@
 
 ### 功能说明
 
-管理员可在仪表盘（`/admin/dashboard`）的「分组账号用量」区域，按分组查看各账号的实时用量窗口进度条，与账号管理列表的展示风格完全一致。
+管理员与普通用户均可在仪表盘的「分组账号用量」区域，按分组查看各账号的实时用量窗口进度条，与账号管理列表的展示风格完全一致。
 
 | 位置 | 展示范围 | 展示内容 |
 |------|---------|---------|
-| **管理员看板** | 系统中所有活跃分组及其活跃账号 | 每个账号的 5h / 7d 用量进度条（utilization %） |
+| **管理员看板**（`/admin/dashboard`） | 系统中所有活跃分组及其活跃账号 | 每个账号的 5h / 7d 用量进度条（utilization %） |
+| **普通用户看板**（`/dashboard`） | 当前用户可用分组（订阅 + 公开/允许分组）及其活跃账号 | 同上，账号用量字段与管理员视图完全一致（不脱敏） |
 
-> 普通用户仪表盘不展示分组用量信息。API 密钥管理列表也不展示分组消耗数据（一个 API 密钥可关联多个分组，无法对应展示）。
+> 默认所有分组**全部展开**；账号列表按分组懒加载，组件内缓存避免重复请求。API 密钥管理列表不展示分组消耗数据（一个 API 密钥可关联多个分组，无法对应展示）。
 
 ### 界面说明
 
@@ -46,14 +47,17 @@
 └─────────────────────────────────────────────────┘
 ```
 
-- 点击分组行展开 / 收起账号列表，首个分组默认展开。
+- 点击分组行展开 / 收起账号列表，**所有分组默认展开**（管理员与普通用户视图一致）。
 - 账号列表懒加载（展开时触发），加载完成后缓存，不重复请求。
 - 进度条颜色：绿色（0–79%）→ 琥珀色（80–99%）→ 红色（100%+）。
 - 百分比含义：该账号在对应时间窗口内的**用量 / 配额上限**，与账号管理列表语义一致。
+- 普通用户视角下，分组徽标数字来自展开后加载的账号数（用户侧分组接口不携带 `active_account_count`）。
 
 ### 数据来源
 
-组件复用现有接口，无新增后端接口：
+组件按当前用户角色调用不同接口：
+
+**管理员视角**
 
 | 调用 | 用途 |
 |------|------|
@@ -61,14 +65,27 @@
 | `GET /api/v1/admin/accounts?group=<id>&status=active&page_size=50` | 获取指定分组的活跃账号 |
 | `GET /api/v1/admin/accounts/<id>/usage` | 获取单账号用量窗口数据（由 `AccountUsageCell` 内部发起） |
 
+**普通用户视角**
+
+| 调用 | 用途 |
+|------|------|
+| `GET /api/v1/groups/available` | 获取当前用户可绑定的分组列表（基线与 API Key 创建页一致） |
+| `GET /api/v1/groups/<id>/accounts` | 获取该分组下的活跃账号摘要；分组不在可用集合时 403 |
+| `GET /api/v1/accounts/<id>/usage` | 获取单账号用量；账号不属于任一可用分组时 403 |
+
 ### 前端组件
 
 - **`GroupAccountsWidget.vue`** — `frontend/src/components/dashboard/GroupAccountsWidget.vue`  
-  管理员仪表盘分组账号用量主组件，按分组折叠展示账号列表。
+  分组账号用量主组件，支持 `mode="admin" | "user"`：admin 走 `adminAPI`，user 走 `userGroupsAPI`，所有分组默认展开。
 - **`AccountUsageCell.vue`** — `frontend/src/components/account/AccountUsageCell.vue`  
-  账号用量单元格，支持 Anthropic、OpenAI、Gemini、Antigravity 等多平台。
+  账号用量单元格，支持 Anthropic、OpenAI、Gemini、Antigravity 等多平台；可选 `usageFetcher` prop 用于在用户视角下切换到 `/api/v1/accounts/:id/usage`。
 - **`UsageProgressBar.vue`** — `frontend/src/components/account/UsageProgressBar.vue`  
   带颜色状态和剩余时间的进度条组件。
+
+### 后端 Handler
+
+- **`UserAccountHandler`** — `backend/internal/handler/user_account_handler.go`  
+  用户侧分组账号 / 单账号用量查询。权限基线复用 `APIKeyService.GetAvailableGroups`。
 
 ---
 
