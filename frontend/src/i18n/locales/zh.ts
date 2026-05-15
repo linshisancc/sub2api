@@ -858,6 +858,7 @@ export default {
     unknown: '未知',
     in: '输入',
     out: '输出',
+    cache: '缓存',
     inputTokenPrice: '输入单价',
     outputTokenPrice: '输出单价',
     perMillionTokens: '/ 1M Token',
