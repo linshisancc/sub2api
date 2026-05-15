@@ -4,7 +4,19 @@
  */
 
 import { apiClient } from './client'
-import type { Group } from '@/types'
+import type { Group, AccountUsageInfo } from '@/types'
+
+/**
+ * Lightweight account summary returned by the user-side group accounts endpoint.
+ * Strips credentials / quota / extra; only carries fields needed by dashboard cards.
+ */
+export interface UserGroupAccountSummary {
+  id: number
+  name: string
+  platform: string
+  type: string
+  status: string
+}
 
 /**
  * Get available groups that the current user can bind to API keys
@@ -43,10 +55,35 @@ export async function getGroupStats(groupId: number): Promise<GroupWindowStats> 
   return data
 }
 
+/**
+ * List active accounts in a group accessible to the current user.
+ * Returns 403 when the group is not in the user's available set.
+ */
+export async function getGroupAccounts(groupId: number): Promise<UserGroupAccountSummary[]> {
+  const { data } = await apiClient.get<UserGroupAccountSummary[]>(`/groups/${groupId}/accounts`)
+  return data
+}
+
+/**
+ * Get a single account's realtime usage windows (user view).
+ * Returns 403 when the account doesn't intersect any of the user's available groups.
+ */
+export async function getAccountUsage(
+  id: number,
+  source?: 'passive' | 'active'
+): Promise<AccountUsageInfo> {
+  const { data } = await apiClient.get<AccountUsageInfo>(`/accounts/${id}/usage`, {
+    params: source ? { source } : undefined
+  })
+  return data
+}
+
 export const userGroupsAPI = {
   getAvailable,
   getUserGroupRates,
-  getGroupStats
+  getGroupStats,
+  getGroupAccounts,
+  getAccountUsage
 }
 
 export default userGroupsAPI

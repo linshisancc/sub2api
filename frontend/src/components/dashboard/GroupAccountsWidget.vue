@@ -39,8 +39,8 @@
             :class="platformBadgeClass(group.platform)">
             {{ group.platform }}
           </span>
-          <span v-if="group.active_account_count != null" class="shrink-0 text-xs text-gray-400 dark:text-dark-500">
-            {{ group.active_account_count }}
+          <span v-if="groupBadgeCount(group) != null" class="shrink-0 text-xs text-gray-400 dark:text-dark-500">
+            {{ groupBadgeCount(group) }}
           </span>
         </button>
 
@@ -69,7 +69,7 @@
                 <p class="text-[10px] text-gray-400 dark:text-dark-500">{{ account.type }}</p>
               </div>
               <div class="shrink-0">
-                <AccountUsageCell :account="account" />
+                <AccountUsageCell :account="account" :usage-fetcher="usageFetcher" />
               </div>
             </div>
           </div>
@@ -83,16 +83,58 @@
 import { ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api/admin'
-import type { AdminGroup, Account } from '@/types'
+import { userGroupsAPI } from '@/api/groups'
+import type { AdminGroup, Account, Group, AccountUsageInfo } from '@/types'
 import AccountUsageCell from '@/components/account/AccountUsageCell.vue'
+
+type WidgetMode = 'admin' | 'user'
+
+const props = withDefaults(
+  defineProps<{
+    mode?: WidgetMode
+  }>(),
+  { mode: 'admin' }
+)
 
 const { t } = useI18n()
 
+// Loose group shape that covers both AdminGroup and user-side Group.
+// Only id/name/platform are required by the widget; active_account_count is admin-only.
+type WidgetGroup = (AdminGroup | Group) & { active_account_count?: number }
+// User-mode endpoints return a minimal summary; admin endpoint returns full Account.
+// AccountUsageCell only reads id/name/type/platform, so we cast user summaries through
+// Account at assembly time rather than threading a union type everywhere.
+type WidgetAccount = Account
+
 const loading = ref(false)
-const groups = ref<AdminGroup[]>([])
+const groups = ref<WidgetGroup[]>([])
 const expandedGroups = ref(new Set<number>())
-const groupAccounts = ref<Record<number, Account[]>>({})
+const groupAccounts = ref<Record<number, WidgetAccount[]>>({})
 const groupLoadingState = ref<Record<number, boolean>>({})
+
+const fetchGroups = async (): Promise<WidgetGroup[]> => {
+  if (props.mode === 'user') {
+    return (await userGroupsAPI.getAvailable()) as WidgetGroup[]
+  }
+  return (await adminAPI.groups.getAll()) as WidgetGroup[]
+}
+
+const fetchGroupAccounts = async (groupId: number): Promise<WidgetAccount[]> => {
+  if (props.mode === 'user') {
+    const summaries = await userGroupsAPI.getGroupAccounts(groupId)
+    return summaries as unknown as WidgetAccount[]
+  }
+  const res = await adminAPI.accounts.list(1, 50, { group: String(groupId), status: 'active' })
+  return (res.items || []) as WidgetAccount[]
+}
+
+// Fetcher passed into AccountUsageCell — only override in user mode so admin
+// callers keep the default adminAPI.accounts.getUsage behavior.
+const usageFetcher =
+  props.mode === 'user'
+    ? (id: number, source?: 'passive' | 'active'): Promise<AccountUsageInfo> =>
+        userGroupsAPI.getAccountUsage(id, source)
+    : undefined
 
 const platformBadgeClass = (platform: string) => {
   const map: Record<string, string> = {
@@ -104,12 +146,18 @@ const platformBadgeClass = (platform: string) => {
   return map[platform] ?? 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
 }
 
+const groupBadgeCount = (group: WidgetGroup): number | null => {
+  // Prefer admin-provided count when available; otherwise fall back to loaded accounts length.
+  if (typeof group.active_account_count === 'number') return group.active_account_count
+  const loaded = groupAccounts.value[group.id]
+  return loaded ? loaded.length : null
+}
+
 const loadAccounts = async (groupId: number) => {
   if (groupAccounts.value[groupId] !== undefined || groupLoadingState.value[groupId]) return
   groupLoadingState.value[groupId] = true
   try {
-    const res = await adminAPI.accounts.list(1, 50, { group: String(groupId), status: 'active' })
-    groupAccounts.value[groupId] = res.items || []
+    groupAccounts.value[groupId] = await fetchGroupAccounts(groupId)
   } catch {
     groupAccounts.value[groupId] = []
   } finally {
@@ -129,13 +177,13 @@ const toggleGroup = (groupId: number) => {
 onMounted(async () => {
   loading.value = true
   try {
-    groups.value = await adminAPI.groups.getAll()
-    // Auto-expand first group
-    if (groups.value.length > 0) {
-      const firstId = groups.value[0].id
-      expandedGroups.value.add(firstId)
-      loadAccounts(firstId)
+    groups.value = await fetchGroups()
+    // Auto-expand every group and trigger lazy loads in parallel.
+    // loadAccounts() caches per-group, so concurrent calls won't duplicate requests.
+    for (const g of groups.value) {
+      expandedGroups.value.add(g.id)
     }
+    await Promise.all(groups.value.map((g) => loadAccounts(g.id)))
   } catch {
     groups.value = []
   } finally {

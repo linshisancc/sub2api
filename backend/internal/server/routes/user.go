@@ -69,6 +69,13 @@ func RegisterUserRoutes(
 			groups.GET("/available", h.APIKey.GetAvailableGroups)
 			groups.GET("/rates", h.APIKey.GetUserGroupRates)
 			groups.GET("/:id/stats", h.Usage.GetGroupStats)
+			groups.GET("/:id/accounts", h.UserAccount.ListGroupAccounts)
+		}
+
+		// 用户可见的账号实时用量（限定在用户可用分组内的账号）
+		accounts := authenticated.Group("/accounts")
+		{
+			accounts.GET("/:id/usage", h.UserAccount.GetAccountUsage)
 		}
 
 		// 用户可用渠道（非管理员接口）

@@ -490,11 +490,16 @@ const props = withDefaults(
     todayStats?: WindowStats | null
     todayStatsLoading?: boolean
     manualRefreshToken?: number
+    // Optional fetcher override — when provided, the cell uses this instead of
+    // adminAPI.accounts.getUsage. Lets non-admin contexts (e.g. user dashboard)
+    // route the call to a user-scoped endpoint without changing this component.
+    usageFetcher?: (id: number, source?: 'passive' | 'active') => Promise<AccountUsageInfo>
   }>(),
   {
     todayStats: null,
     todayStatsLoading: false,
-    manualRefreshToken: 0
+    manualRefreshToken: 0,
+    usageFetcher: undefined
   }
 )
 
@@ -1001,7 +1006,8 @@ const loadUsage = async (options?: { source?: 'passive' | 'active'; bypassCache?
   error.value = null
 
   try {
-    const fetchFn = () => adminAPI.accounts.getUsage(props.account.id, options?.source)
+    const fetchFn = () =>
+      (props.usageFetcher ?? adminAPI.accounts.getUsage)(props.account.id, options?.source)
     const result = await enqueueUsageRequest(props.account, fetchFn)
     if (!unmounted.value) {
       usageInfo.value = result
