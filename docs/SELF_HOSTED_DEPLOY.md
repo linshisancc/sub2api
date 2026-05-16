@@ -33,7 +33,7 @@ sub2api:
 
 ```bash
 # 在项目根目录执行
-docker build -t linshisancc/sub2api:latest -f deploy/Dockerfile .
+docker build --platform linux/amd64 -t linshisancc/sub2api:latest -f deploy/Dockerfile .
 docker push linshisancc/sub2api:latest
 ```
 
@@ -62,14 +62,14 @@ docker compose logs -f sub2api
 
 ```bash
 # 在项目根目录执行
-docker build -t linshisancc/sub2api:latest -f deploy/Dockerfile .
+docker build --platform linux/amd64 -t linshisancc/sub2api:latest -f deploy/Dockerfile .
 docker push linshisancc/sub2api:latest
 ```
 
 也可以同时打版本 tag，方便回滚：
 
 ```bash
-docker build -t linshisancc/sub2api:v1.2.0 -t linshisancc/sub2api:latest -f deploy/Dockerfile .
+docker build --platform linux/amd64 -t linshisancc/sub2api:v1.2.0 -t linshisancc/sub2api:latest -f deploy/Dockerfile .
 docker push linshisancc/sub2api:v1.2.0
 docker push linshisancc/sub2api:latest
 ```
