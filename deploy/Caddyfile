@@ -81,6 +81,7 @@ api.sub2api.com {
 			header Content-Type application/xml*
 			header Content-Type application/rss+xml*
 			header Content-Type image/svg+xml*
+			not header Content-Type text/event-stream*
 		}
 	}
 
