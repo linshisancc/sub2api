@@ -390,6 +390,7 @@ const (
 	SettingKeyFeishuWebhookCooldownMinutes = "feishu_webhook_cooldown_minutes" // 冷却时间（分钟）
 	SettingKeyFeishuWebhookNotifyBalance   = "feishu_webhook_notify_balance"   // 推送余额不足
 	SettingKeyFeishuWebhookNotifyAccount   = "feishu_webhook_notify_account"   // 推送账号额度超限
+	SettingKeyFeishuWebhookNotifyOps       = "feishu_webhook_notify_ops"       // 推送监控告警
 
 	// Web Search Emulation
 	SettingKeyWebSearchEmulationConfig = "web_search_emulation_config" // JSON 配置

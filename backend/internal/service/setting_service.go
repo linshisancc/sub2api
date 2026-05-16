@@ -1667,6 +1667,7 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	updates[SettingKeyFeishuWebhookURL] = settings.FeishuWebhookURL
 	updates[SettingKeyFeishuWebhookNotifyBalance] = strconv.FormatBool(settings.FeishuWebhookNotifyBalance)
 	updates[SettingKeyFeishuWebhookNotifyAccount] = strconv.FormatBool(settings.FeishuWebhookNotifyAccount)
+	updates[SettingKeyFeishuWebhookNotifyOps] = strconv.FormatBool(settings.FeishuWebhookNotifyOps)
 	if settings.FeishuWebhookCooldownMinutes > 0 {
 		updates[SettingKeyFeishuWebhookCooldownMinutes] = strconv.Itoa(settings.FeishuWebhookCooldownMinutes)
 	}
@@ -2885,6 +2886,7 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 	result.FeishuWebhookURL = settings[SettingKeyFeishuWebhookURL]
 	result.FeishuWebhookNotifyBalance = settings[SettingKeyFeishuWebhookNotifyBalance] == "true"
 	result.FeishuWebhookNotifyAccount = settings[SettingKeyFeishuWebhookNotifyAccount] == "true"
+	result.FeishuWebhookNotifyOps = settings[SettingKeyFeishuWebhookNotifyOps] == "true"
 	if v, err := strconv.Atoi(settings[SettingKeyFeishuWebhookCooldownMinutes]); err == nil && v > 0 {
 		result.FeishuWebhookCooldownMinutes = v
 	} else {

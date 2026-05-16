@@ -6111,6 +6111,13 @@
                 </div>
                 <Toggle v-model="form.feishu_webhook_notify_account" />
               </div>
+              <div class="flex items-center justify-between">
+                <div>
+                  <p class="text-sm font-medium text-gray-700 dark:text-gray-300">监控告警</p>
+                  <p class="text-xs text-gray-500 dark:text-gray-400">监控页告警策略命中阈值时推送，复用监控模块自身的静默 / 去重机制；需先在监控页配置告警策略。</p>
+                </div>
+                <Toggle v-model="form.feishu_webhook_notify_ops" />
+              </div>
             </div>
           </div>
         </div>
@@ -6509,6 +6516,7 @@ type SettingsForm = Omit<
   feishu_webhook_cooldown_minutes: number;
   feishu_webhook_notify_balance: boolean;
   feishu_webhook_notify_account: boolean;
+  feishu_webhook_notify_ops: boolean;
 };
 
 const form = reactive<SettingsForm>({
@@ -6694,6 +6702,7 @@ const form = reactive<SettingsForm>({
   feishu_webhook_cooldown_minutes: 30,
   feishu_webhook_notify_balance: true,
   feishu_webhook_notify_account: true,
+  feishu_webhook_notify_ops: false,
   // Channel Monitor feature switch
   channel_monitor_enabled: true,
   channel_monitor_default_interval_seconds: 60,
@@ -7805,6 +7814,7 @@ async function saveSettings() {
       feishu_webhook_cooldown_minutes: Number(form.feishu_webhook_cooldown_minutes) || 30,
       feishu_webhook_notify_balance: form.feishu_webhook_notify_balance,
       feishu_webhook_notify_account: form.feishu_webhook_notify_account,
+      feishu_webhook_notify_ops: form.feishu_webhook_notify_ops,
       // Channel Monitor feature switch
       channel_monitor_enabled: form.channel_monitor_enabled,
       channel_monitor_default_interval_seconds:

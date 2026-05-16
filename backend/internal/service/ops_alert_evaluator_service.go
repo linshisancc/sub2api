@@ -704,24 +704,15 @@ func (s *OpsAlertEvaluatorService) maybeSendAlertEmail(ctx context.Context, runt
 }
 
 // maybeSendAlertFeishu pushes the alert to Feishu when ops feishu notification is enabled.
-// It runs in parallel with maybeSendAlertEmail. Unlike email, the feishu push is NOT gated
-// by the email MinSeverity threshold — it is controlled solely by its own FeishuEnabled
-// toggle and the shared silencing rules.
+// It runs in parallel with maybeSendAlertEmail. The feishu push is controlled by the
+// feishu_webhook_notify_ops setting (checked inside SendOpsAlert) and the shared silencing
+// rules — it is independent of the email notification config and MinSeverity threshold.
 func (s *OpsAlertEvaluatorService) maybeSendAlertFeishu(ctx context.Context, runtimeCfg *OpsAlertRuntimeSettings, rule *OpsAlertRule, event *OpsAlertEvent) {
-	if s == nil || s.feishuWebhook == nil || s.opsService == nil || event == nil || rule == nil {
+	if s == nil || s.feishuWebhook == nil || event == nil || rule == nil {
 		logger.LegacyPrintf("service.ops_alert_evaluator", "[OpsAlertEvaluator] feishu skipped: nil dependency")
 		return
 	}
 
-	emailCfg, err := s.opsService.GetEmailNotificationConfig(ctx)
-	if err != nil || emailCfg == nil {
-		logger.LegacyPrintf("service.ops_alert_evaluator", "[OpsAlertEvaluator] feishu skipped (rule=%d): load notification config failed: %v", rule.ID, err)
-		return
-	}
-	if !emailCfg.Alert.FeishuEnabled {
-		logger.LegacyPrintf("service.ops_alert_evaluator", "[OpsAlertEvaluator] feishu skipped (rule=%d): alert.feishu_enabled is false", rule.ID)
-		return
-	}
 	if runtimeCfg != nil && runtimeCfg.Silencing.Enabled {
 		if isOpsAlertSilenced(time.Now().UTC(), rule, event, runtimeCfg.Silencing) {
 			logger.LegacyPrintf("service.ops_alert_evaluator", "[OpsAlertEvaluator] feishu skipped (rule=%d): silenced", rule.ID)

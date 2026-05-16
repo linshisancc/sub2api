@@ -113,6 +113,7 @@ func (s *FeishuWebhookService) SendOpsAlert(ctx context.Context, rule *OpsAlertR
 	settings, err := s.settingRepo.GetMultiple(ctx, []string{
 		SettingKeyFeishuWebhookEnabled,
 		SettingKeyFeishuWebhookURL,
+		SettingKeyFeishuWebhookNotifyOps,
 	})
 	if err != nil {
 		slog.Warn("feishu_webhook: failed to load settings for ops alert", "error", err)
@@ -125,6 +126,10 @@ func (s *FeishuWebhookService) SendOpsAlert(ctx context.Context, rule *OpsAlertR
 	webhookURL := settings[SettingKeyFeishuWebhookURL]
 	if webhookURL == "" {
 		slog.Warn("feishu_webhook: ops alert skipped, webhook URL not configured", "rule_id", rule.ID)
+		return
+	}
+	if settings[SettingKeyFeishuWebhookNotifyOps] != "true" {
+		slog.Debug("feishu_webhook: ops alert skipped, feishu_webhook_notify_ops disabled", "rule_id", rule.ID)
 		return
 	}
 

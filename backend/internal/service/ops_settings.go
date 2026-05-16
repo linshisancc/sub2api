@@ -73,7 +73,6 @@ func (s *OpsService) UpdateEmailNotificationConfig(ctx context.Context, req *Ops
 		cfg.Alert.RateLimitPerHour = req.Alert.RateLimitPerHour
 		cfg.Alert.BatchingWindowSeconds = req.Alert.BatchingWindowSeconds
 		cfg.Alert.IncludeResolvedAlerts = req.Alert.IncludeResolvedAlerts
-		cfg.Alert.FeishuEnabled = req.Alert.FeishuEnabled
 	}
 
 	if req.Report != nil {
@@ -117,7 +116,6 @@ func defaultOpsEmailNotificationConfig() *OpsEmailNotificationConfig {
 			RateLimitPerHour:      0,
 			BatchingWindowSeconds: 0,
 			IncludeResolvedAlerts: false,
-			FeishuEnabled:         false,
 		},
 		Report: OpsEmailReportConfig{
 			Enabled:                         false,
