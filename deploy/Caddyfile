@@ -74,14 +74,21 @@ api.sub2api.com {
 		zstd
 		gzip 6
 		minimum_length 256
+		# 仅压缩明确列出的类型。刻意不使用 text/* 通配，
+		# 否则会匹配到 text/event-stream，导致 SSE 流式响应被压缩器缓冲，
+		# 客户端收到的不是逐字输出而是一块一块的内容。
 		match {
-			header Content-Type text/*
+			header Content-Type text/html*
+			header Content-Type text/css*
+			header Content-Type text/plain*
+			header Content-Type text/javascript*
+			header Content-Type text/xml*
+			header Content-Type text/markdown*
 			header Content-Type application/json*
 			header Content-Type application/javascript*
 			header Content-Type application/xml*
 			header Content-Type application/rss+xml*
 			header Content-Type image/svg+xml*
-			not header Content-Type text/event-stream*
 		}
 	}
 
