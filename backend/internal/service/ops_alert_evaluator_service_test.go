@@ -4,7 +4,6 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -83,29 +82,11 @@ func (r *feishuTestSettingRepo) Delete(ctx context.Context, key string) error {
 	return nil
 }
 
-func TestUpdateEmailNotificationConfigPersistsFeishuEnabled(t *testing.T) {
-	repo := newFeishuTestSettingRepo()
-	svc := &OpsService{settingRepo: repo}
-	ctx := context.Background()
-
-	_, err := svc.UpdateEmailNotificationConfig(ctx, &OpsEmailNotificationConfigUpdateRequest{
-		Alert: &OpsEmailAlertConfig{
-			Enabled:       true,
-			FeishuEnabled: true,
-		},
-	})
-	require.NoError(t, err)
-
-	got, err := svc.GetEmailNotificationConfig(ctx)
-	require.NoError(t, err)
-	require.True(t, got.Alert.FeishuEnabled, "feishu_enabled must survive a save/load round-trip")
-}
-
 func TestMaybeSendAlertFeishu(t *testing.T) {
 	rule := &OpsAlertRule{ID: 7, Name: "API 成功率过低", Severity: "P1", MetricType: "error_rate", Operator: ">", Threshold: 20}
 	event := &OpsAlertEvent{ID: 99, Status: OpsAlertStatusFiring, FiredAt: time.Now().UTC()}
 
-	setup := func(t *testing.T, feishuEnabled bool, minSeverity string) (*OpsAlertEvaluatorService, *int32) {
+	setup := func(t *testing.T, notifyOps bool) (*OpsAlertEvaluatorService, *int32) {
 		var hits int32
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			atomic.AddInt32(&hits, 1)
@@ -114,36 +95,32 @@ func TestMaybeSendAlertFeishu(t *testing.T) {
 		t.Cleanup(server.Close)
 
 		repo := newFeishuTestSettingRepo()
-		cfg := &OpsEmailNotificationConfig{}
-		cfg.Alert.Enabled = true
-		cfg.Alert.FeishuEnabled = feishuEnabled
-		cfg.Alert.MinSeverity = minSeverity
-		raw, _ := json.Marshal(cfg)
-		_ = repo.Set(context.Background(), SettingKeyOpsEmailNotificationConfig, string(raw))
 		_ = repo.Set(context.Background(), SettingKeyFeishuWebhookEnabled, "true")
 		_ = repo.Set(context.Background(), SettingKeyFeishuWebhookURL, server.URL)
+		if notifyOps {
+			_ = repo.Set(context.Background(), SettingKeyFeishuWebhookNotifyOps, "true")
+		}
 
 		svc := &OpsAlertEvaluatorService{
-			opsService:    &OpsService{settingRepo: repo},
 			feishuWebhook: NewFeishuWebhookService(repo, nil),
 		}
 		return svc, &hits
 	}
 
-	t.Run("feishu_enabled=false 不推送", func(t *testing.T) {
-		svc, hits := setup(t, false, "")
+	t.Run("notify_ops=false 不推送", func(t *testing.T) {
+		svc, hits := setup(t, false)
 		svc.maybeSendAlertFeishu(context.Background(), nil, rule, event)
 		require.Equal(t, int32(0), atomic.LoadInt32(hits))
 	})
 
-	t.Run("高 MinSeverity 不再屏蔽飞书（解耦）", func(t *testing.T) {
-		svc, hits := setup(t, true, "critical")
+	t.Run("notify_ops=true 推送", func(t *testing.T) {
+		svc, hits := setup(t, true)
 		svc.maybeSendAlertFeishu(context.Background(), nil, rule, event)
-		require.Equal(t, int32(1), atomic.LoadInt32(hits), "P1 规则在 MinSeverity=critical 下仍应推送飞书")
+		require.Equal(t, int32(1), atomic.LoadInt32(hits))
 	})
 
 	t.Run("命中静默规则不推送", func(t *testing.T) {
-		svc, hits := setup(t, true, "")
+		svc, hits := setup(t, true)
 		runtimeCfg := &OpsAlertRuntimeSettings{
 			Silencing: OpsAlertSilencingSettings{
 				Enabled:            true,

@@ -4922,8 +4922,6 @@ export default {
         rateLimitPerHour: 'Rate limit per hour',
         batchWindowSeconds: 'Batch window (seconds)',
         includeResolved: 'Include resolved alerts',
-        feishuEnabled: 'Also push to Feishu',
-        feishuEnabledHint: 'Reuses the URL from Settings → Feishu Webhook; enable it and fill the Webhook URL there first',
         dailySummary: 'Daily summary',
         weeklySummary: 'Weekly summary',
         errorDigest: 'Error digest',

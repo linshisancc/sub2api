@@ -5084,8 +5084,6 @@ export default {
         rateLimitPerHour: '每小时限额',
         batchWindowSeconds: '合并窗口（秒）',
         includeResolved: '包含恢复通知',
-        feishuEnabled: '同时推送到飞书',
-        feishuEnabledHint: '复用「系统设置 → 飞书 Webhook」中配置的地址，需先在该处启用并填写 Webhook URL',
         dailySummary: '每日摘要',
         weeklySummary: '每周摘要',
         errorDigest: '错误摘要',

@@ -535,6 +535,7 @@ export interface SystemSettings {
   feishu_webhook_cooldown_minutes: number;
   feishu_webhook_notify_balance: boolean;
   feishu_webhook_notify_account: boolean;
+  feishu_webhook_notify_ops: boolean;
 }
 
 export interface UpdateSettingsRequest {
@@ -737,6 +738,7 @@ export interface UpdateSettingsRequest {
   feishu_webhook_cooldown_minutes?: number;
   feishu_webhook_notify_balance?: boolean;
   feishu_webhook_notify_account?: boolean;
+  feishu_webhook_notify_ops?: boolean;
 }
 
 /**

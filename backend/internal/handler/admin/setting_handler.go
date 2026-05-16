@@ -243,6 +243,7 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		FeishuWebhookCooldownMinutes:           settings.FeishuWebhookCooldownMinutes,
 		FeishuWebhookNotifyBalance:             settings.FeishuWebhookNotifyBalance,
 		FeishuWebhookNotifyAccount:             settings.FeishuWebhookNotifyAccount,
+		FeishuWebhookNotifyOps:                 settings.FeishuWebhookNotifyOps,
 		PaymentEnabled:                         paymentCfg.Enabled,
 		PaymentMinAmount:                       paymentCfg.MinAmount,
 		PaymentMaxAmount:                       paymentCfg.MaxAmount,
@@ -547,6 +548,7 @@ type UpdateSettingsRequest struct {
 	FeishuWebhookCooldownMinutes *int    `json:"feishu_webhook_cooldown_minutes"`
 	FeishuWebhookNotifyBalance   *bool   `json:"feishu_webhook_notify_balance"`
 	FeishuWebhookNotifyAccount   *bool   `json:"feishu_webhook_notify_account"`
+	FeishuWebhookNotifyOps       *bool   `json:"feishu_webhook_notify_ops"`
 
 	// Payment configuration (integrated into settings, full replace)
 	PaymentEnabled                   *bool    `json:"payment_enabled"`
@@ -1540,6 +1542,12 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 				return *req.FeishuWebhookNotifyAccount
 			}
 			return previousSettings.FeishuWebhookNotifyAccount
+		}(),
+		FeishuWebhookNotifyOps: func() bool {
+			if req.FeishuWebhookNotifyOps != nil {
+				return *req.FeishuWebhookNotifyOps
+			}
+			return previousSettings.FeishuWebhookNotifyOps
 		}(),
 		ChannelMonitorEnabled: func() bool {
 			if req.ChannelMonitorEnabled != nil {

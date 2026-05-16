@@ -330,15 +330,6 @@ onMounted(() => {
               <span>{{ draft.alert.include_resolved_alerts ? t('common.enabled') : t('common.disabled') }}</span>
             </label>
           </div>
-
-          <div>
-            <div class="mb-1 text-xs font-medium text-gray-600 dark:text-gray-300">{{ t('admin.ops.email.feishuEnabled') }}</div>
-            <label class="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-              <input v-model="draft.alert.feishu_enabled" type="checkbox" class="h-4 w-4 rounded border-gray-300" />
-              <span>{{ draft.alert.feishu_enabled ? t('common.enabled') : t('common.disabled') }}</span>
-            </label>
-            <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">{{ t('admin.ops.email.feishuEnabledHint') }}</p>
-          </div>
         </div>
       </div>
 

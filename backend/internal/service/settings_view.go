@@ -202,6 +202,7 @@ type SystemSettings struct {
 	FeishuWebhookCooldownMinutes int
 	FeishuWebhookNotifyBalance   bool
 	FeishuWebhookNotifyAccount   bool
+	FeishuWebhookNotifyOps       bool
 }
 
 type DefaultSubscriptionSetting struct {

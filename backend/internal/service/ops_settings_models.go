@@ -14,7 +14,6 @@ type OpsEmailAlertConfig struct {
 	RateLimitPerHour      int      `json:"rate_limit_per_hour"`
 	BatchingWindowSeconds int      `json:"batching_window_seconds"`
 	IncludeResolvedAlerts bool     `json:"include_resolved_alerts"`
-	FeishuEnabled         bool     `json:"feishu_enabled"`
 }
 
 type OpsEmailReportConfig struct {

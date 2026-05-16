@@ -214,6 +214,7 @@ type SystemSettings struct {
 	FeishuWebhookCooldownMinutes int    `json:"feishu_webhook_cooldown_minutes"`
 	FeishuWebhookNotifyBalance   bool   `json:"feishu_webhook_notify_balance"`
 	FeishuWebhookNotifyAccount   bool   `json:"feishu_webhook_notify_account"`
+	FeishuWebhookNotifyOps       bool   `json:"feishu_webhook_notify_ops"`
 
 	// Channel Monitor feature switch
 	ChannelMonitorEnabled                bool `json:"channel_monitor_enabled"`
