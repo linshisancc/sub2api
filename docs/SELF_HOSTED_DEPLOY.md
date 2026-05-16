@@ -32,8 +32,8 @@ sub2api:
 ### 本地：构建并推送镜像
 
 ```bash
-# 在项目根目录执行（--platform 指定服务器架构，Mac M 系列芯片必须加）
-docker buildx build --platform linux/amd64 -t linshisancc/sub2api:latest -f deploy/Dockerfile . --load
+# 在项目根目录执行
+docker build --platform linux/amd64 -t linshisancc/sub2api:latest -f deploy/Dockerfile .
 docker push linshisancc/sub2api:latest
 ```
 
@@ -61,15 +61,15 @@ docker compose logs -f sub2api
 ### 第一步：本地构建并推送新镜像
 
 ```bash
-# 在项目根目录执行（--platform 指定服务器架构，Mac M 系列芯片必须加）
-docker buildx build --platform linux/amd64 -t linshisancc/sub2api:latest -f deploy/Dockerfile . --load
+# 在项目根目录执行
+docker build --platform linux/amd64 -t linshisancc/sub2api:latest -f deploy/Dockerfile .
 docker push linshisancc/sub2api:latest
 ```
 
 也可以同时打版本 tag，方便回滚：
 
 ```bash
-docker buildx build --platform linux/amd64 -t linshisancc/sub2api:v1.2.0 -t linshisancc/sub2api:latest -f deploy/Dockerfile . --load
+docker build --platform linux/amd64 -t linshisancc/sub2api:v1.2.0 -t linshisancc/sub2api:latest -f deploy/Dockerfile .
 docker push linshisancc/sub2api:v1.2.0
 docker push linshisancc/sub2api:latest
 ```

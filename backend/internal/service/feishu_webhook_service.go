@@ -119,10 +119,12 @@ func (s *FeishuWebhookService) SendOpsAlert(ctx context.Context, rule *OpsAlertR
 		return
 	}
 	if settings[SettingKeyFeishuWebhookEnabled] != "true" {
+		slog.Debug("feishu_webhook: ops alert skipped, global webhook disabled", "rule_id", rule.ID)
 		return
 	}
 	webhookURL := settings[SettingKeyFeishuWebhookURL]
 	if webhookURL == "" {
+		slog.Warn("feishu_webhook: ops alert skipped, webhook URL not configured", "rule_id", rule.ID)
 		return
 	}
 
