@@ -19,7 +19,7 @@ func newBalanceNotifyServiceForTest() (*BalanceNotifyService, *mockSettingRepo) 
 	// any accidental fallback reads still succeed. Tests should not trigger a
 	// crossing that reaches SendEmail.
 	email := NewEmailService(repo, nil)
-	return NewBalanceNotifyService(email, repo, nil), repo
+	return NewBalanceNotifyService(email, repo, nil, nil), repo
 }
 
 // ---------- guard clauses ----------

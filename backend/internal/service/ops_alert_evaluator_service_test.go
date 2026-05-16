@@ -4,11 +4,156 @@ package service
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 )
+
+// feishuTestSettingRepo is an in-memory SettingRepository for feishu/ops tests.
+type feishuTestSettingRepo struct {
+	mu     sync.Mutex
+	values map[string]string
+}
+
+func newFeishuTestSettingRepo() *feishuTestSettingRepo {
+	return &feishuTestSettingRepo{values: map[string]string{}}
+}
+
+func (r *feishuTestSettingRepo) Get(ctx context.Context, key string) (*Setting, error) {
+	return nil, ErrSettingNotFound
+}
+
+func (r *feishuTestSettingRepo) GetValue(ctx context.Context, key string) (string, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if v, ok := r.values[key]; ok {
+		return v, nil
+	}
+	return "", ErrSettingNotFound
+}
+
+func (r *feishuTestSettingRepo) Set(ctx context.Context, key, value string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.values[key] = value
+	return nil
+}
+
+func (r *feishuTestSettingRepo) GetMultiple(ctx context.Context, keys []string) (map[string]string, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := make(map[string]string, len(keys))
+	for _, k := range keys {
+		if v, ok := r.values[k]; ok {
+			out[k] = v
+		}
+	}
+	return out, nil
+}
+
+func (r *feishuTestSettingRepo) SetMultiple(ctx context.Context, settings map[string]string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for k, v := range settings {
+		r.values[k] = v
+	}
+	return nil
+}
+
+func (r *feishuTestSettingRepo) GetAll(ctx context.Context) (map[string]string, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := make(map[string]string, len(r.values))
+	for k, v := range r.values {
+		out[k] = v
+	}
+	return out, nil
+}
+
+func (r *feishuTestSettingRepo) Delete(ctx context.Context, key string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.values, key)
+	return nil
+}
+
+func TestUpdateEmailNotificationConfigPersistsFeishuEnabled(t *testing.T) {
+	repo := newFeishuTestSettingRepo()
+	svc := &OpsService{settingRepo: repo}
+	ctx := context.Background()
+
+	_, err := svc.UpdateEmailNotificationConfig(ctx, &OpsEmailNotificationConfigUpdateRequest{
+		Alert: &OpsEmailAlertConfig{
+			Enabled:       true,
+			FeishuEnabled: true,
+		},
+	})
+	require.NoError(t, err)
+
+	got, err := svc.GetEmailNotificationConfig(ctx)
+	require.NoError(t, err)
+	require.True(t, got.Alert.FeishuEnabled, "feishu_enabled must survive a save/load round-trip")
+}
+
+func TestMaybeSendAlertFeishu(t *testing.T) {
+	rule := &OpsAlertRule{ID: 7, Name: "API 成功率过低", Severity: "P1", MetricType: "error_rate", Operator: ">", Threshold: 20}
+	event := &OpsAlertEvent{ID: 99, Status: OpsAlertStatusFiring, FiredAt: time.Now().UTC()}
+
+	setup := func(t *testing.T, feishuEnabled bool, minSeverity string) (*OpsAlertEvaluatorService, *int32) {
+		var hits int32
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			atomic.AddInt32(&hits, 1)
+			w.WriteHeader(http.StatusOK)
+		}))
+		t.Cleanup(server.Close)
+
+		repo := newFeishuTestSettingRepo()
+		cfg := &OpsEmailNotificationConfig{}
+		cfg.Alert.Enabled = true
+		cfg.Alert.FeishuEnabled = feishuEnabled
+		cfg.Alert.MinSeverity = minSeverity
+		raw, _ := json.Marshal(cfg)
+		_ = repo.Set(context.Background(), SettingKeyOpsEmailNotificationConfig, string(raw))
+		_ = repo.Set(context.Background(), SettingKeyFeishuWebhookEnabled, "true")
+		_ = repo.Set(context.Background(), SettingKeyFeishuWebhookURL, server.URL)
+
+		svc := &OpsAlertEvaluatorService{
+			opsService:    &OpsService{settingRepo: repo},
+			feishuWebhook: NewFeishuWebhookService(repo, nil),
+		}
+		return svc, &hits
+	}
+
+	t.Run("feishu_enabled=false 不推送", func(t *testing.T) {
+		svc, hits := setup(t, false, "")
+		svc.maybeSendAlertFeishu(context.Background(), nil, rule, event)
+		require.Equal(t, int32(0), atomic.LoadInt32(hits))
+	})
+
+	t.Run("高 MinSeverity 不再屏蔽飞书（解耦）", func(t *testing.T) {
+		svc, hits := setup(t, true, "critical")
+		svc.maybeSendAlertFeishu(context.Background(), nil, rule, event)
+		require.Equal(t, int32(1), atomic.LoadInt32(hits), "P1 规则在 MinSeverity=critical 下仍应推送飞书")
+	})
+
+	t.Run("命中静默规则不推送", func(t *testing.T) {
+		svc, hits := setup(t, true, "")
+		runtimeCfg := &OpsAlertRuntimeSettings{
+			Silencing: OpsAlertSilencingSettings{
+				Enabled:            true,
+				GlobalUntilRFC3339: time.Now().UTC().Add(time.Hour).Format(time.RFC3339),
+			},
+		}
+		svc.maybeSendAlertFeishu(context.Background(), runtimeCfg, rule, event)
+		require.Equal(t, int32(0), atomic.LoadInt32(hits))
+	})
+}
 
 var _ OpsRepository = (*stubOpsRepo)(nil)
 
