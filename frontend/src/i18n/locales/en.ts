@@ -854,6 +854,7 @@ export default {
     unknown: 'Unknown',
     in: 'In',
     out: 'Out',
+    cache: 'Cache',
     inputTokenPrice: 'Input price',
     outputTokenPrice: 'Output price',
     perMillionTokens: '/ 1M tokens',
