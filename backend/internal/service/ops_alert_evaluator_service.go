@@ -307,6 +307,7 @@ func (s *OpsAlertEvaluatorService) evaluateOnce(interval time.Duration) {
 				logger.LegacyPrintf("service.ops_alert_evaluator", "[OpsAlertEvaluator] resolve event failed (event=%d): %v", activeEvent.ID, err)
 			} else {
 				eventsResolved++
+				s.maybeSendAlertResolvedFeishu(ctx, runtimeCfg, rule, activeEvent, resolvedAt)
 			}
 		}
 	}
@@ -722,6 +723,25 @@ func (s *OpsAlertEvaluatorService) maybeSendAlertFeishu(ctx context.Context, run
 
 	logger.LegacyPrintf("service.ops_alert_evaluator", "[OpsAlertEvaluator] feishu push (rule=%d severity=%s event=%d)", rule.ID, strings.TrimSpace(rule.Severity), event.ID)
 	s.feishuWebhook.SendOpsAlert(ctx, rule, event)
+}
+
+// maybeSendAlertResolvedFeishu pushes a recovery notification to Feishu when an Ops
+// alert transitions from firing to resolved. It reuses the feishu_webhook_notify_ops
+// toggle (checked inside SendOpsAlertResolved) and the shared silencing rules.
+func (s *OpsAlertEvaluatorService) maybeSendAlertResolvedFeishu(ctx context.Context, runtimeCfg *OpsAlertRuntimeSettings, rule *OpsAlertRule, event *OpsAlertEvent, resolvedAt time.Time) {
+	if s == nil || s.feishuWebhook == nil || event == nil || rule == nil {
+		return
+	}
+
+	if runtimeCfg != nil && runtimeCfg.Silencing.Enabled {
+		if isOpsAlertSilenced(time.Now().UTC(), rule, event, runtimeCfg.Silencing) {
+			logger.LegacyPrintf("service.ops_alert_evaluator", "[OpsAlertEvaluator] feishu resolved skipped (rule=%d): silenced", rule.ID)
+			return
+		}
+	}
+
+	logger.LegacyPrintf("service.ops_alert_evaluator", "[OpsAlertEvaluator] feishu resolved push (rule=%d event=%d)", rule.ID, event.ID)
+	s.feishuWebhook.SendOpsAlertResolved(ctx, rule, event, resolvedAt)
 }
 
 func buildOpsAlertEmailBody(rule *OpsAlertRule, event *OpsAlertEvent) string {

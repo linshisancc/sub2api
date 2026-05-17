@@ -1416,6 +1416,12 @@ func (s *RateLimitService) UpdateSessionWindow(ctx context.Context, account *Acc
 
 // ClearRateLimit 清除账号的限流状态
 func (s *RateLimitService) ClearRateLimit(ctx context.Context, accountID int64) error {
+	// 记录清理前是否处于限流状态，用于在恢复后推送飞书告警。
+	var recoveredAccount *Account
+	if acc, err := s.accountRepo.GetByID(ctx, accountID); err == nil && acc != nil && acc.IsRateLimited() {
+		recoveredAccount = acc
+	}
+
 	if err := s.accountRepo.ClearRateLimit(ctx, accountID); err != nil {
 		return err
 	}
@@ -1435,7 +1441,26 @@ func (s *RateLimitService) ClearRateLimit(ctx context.Context, accountID int64) 
 		}
 	}
 	s.ResetOpenAI403Counter(ctx, accountID)
+
+	if recoveredAccount != nil {
+		s.NotifyAccountRateLimitRecovered(recoveredAccount)
+	}
 	return nil
+}
+
+// NotifyAccountRateLimitRecovered 异步推送账号限流恢复飞书告警。
+func (s *RateLimitService) NotifyAccountRateLimitRecovered(account *Account) {
+	if s.feishuWebhook == nil || account == nil {
+		return
+	}
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("panic in account rate-limit-recovered notification", "recover", r)
+			}
+		}()
+		s.feishuWebhook.SendAccountRateLimitRecovered(context.Background(), account)
+	}()
 }
 
 func (s *RateLimitService) ResetOpenAI403Counter(ctx context.Context, accountID int64) {

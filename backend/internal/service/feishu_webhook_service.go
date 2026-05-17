@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	httppool "github.com/Wei-Shaw/sub2api/internal/pkg/httpclient"
@@ -15,7 +16,7 @@ import (
 )
 
 const (
-	feishuWebhookTimeout        = 10 * time.Second
+	feishuWebhookTimeout         = 10 * time.Second
 	feishuDefaultCooldownMinutes = 30
 )
 
@@ -44,6 +45,8 @@ func (s *FeishuWebhookService) Send(ctx context.Context, alertType, identifier, 
 		SettingKeyFeishuWebhookCooldownMinutes,
 		SettingKeyFeishuWebhookNotifyBalance,
 		SettingKeyFeishuWebhookNotifyAccount,
+		SettingKeyFeishuWebhookAtAll,
+		SettingKeyFeishuWebhookAtUserIDs,
 	}
 	settings, err := s.settingRepo.GetMultiple(ctx, keys)
 	if err != nil {
@@ -65,11 +68,7 @@ func (s *FeishuWebhookService) Send(ctx context.Context, alertType, identifier, 
 		if settings[SettingKeyFeishuWebhookNotifyBalance] != "true" {
 			return
 		}
-	case "account_quota":
-		if settings[SettingKeyFeishuWebhookNotifyAccount] != "true" {
-			return
-		}
-	case "account_rate_limited":
+	case "account_quota", "account_rate_limited", "account_rate_limit_recovered":
 		if settings[SettingKeyFeishuWebhookNotifyAccount] != "true" {
 			return
 		}
@@ -87,7 +86,8 @@ func (s *FeishuWebhookService) Send(ctx context.Context, alertType, identifier, 
 		return
 	}
 
-	if err := s.post(webhookURL, title, content); err != nil {
+	card := buildAlertCard(feishuAlertStyleFor(alertType), title, content, settings)
+	if err := s.postCard(webhookURL, card); err != nil {
 		slog.Error("feishu_webhook: send failed", "error", err, "alert_type", alertType)
 	}
 }
@@ -103,6 +103,17 @@ func (s *FeishuWebhookService) SendAccountRateLimited(ctx context.Context, accou
 	s.Send(ctx, "account_rate_limited", strconv.FormatInt(account.ID, 10), title, content)
 }
 
+// SendAccountRateLimitRecovered delivers a Feishu alert when an account exits the rate-limited state.
+func (s *FeishuWebhookService) SendAccountRateLimitRecovered(ctx context.Context, account *Account) {
+	if account == nil {
+		return
+	}
+	title := "账号限流恢复"
+	content := fmt.Sprintf("账号：%s\n平台：%s\n状态：已恢复\n恢复时间：%s",
+		account.Name, account.Platform, time.Now().Format("2006-01-02 15:04:05"))
+	s.Send(ctx, "account_rate_limit_recovered", strconv.FormatInt(account.ID, 10), title, content)
+}
+
 // SendOpsAlert delivers an Ops monitoring alert to the Feishu webhook.
 // Unlike Send, it bypasses the per-type toggle and the Redis cooldown — the Ops
 // alert module already owns its own cooldown/sustained/silencing throttling.
@@ -110,26 +121,8 @@ func (s *FeishuWebhookService) SendOpsAlert(ctx context.Context, rule *OpsAlertR
 	if rule == nil || event == nil {
 		return
 	}
-	settings, err := s.settingRepo.GetMultiple(ctx, []string{
-		SettingKeyFeishuWebhookEnabled,
-		SettingKeyFeishuWebhookURL,
-		SettingKeyFeishuWebhookNotifyOps,
-	})
-	if err != nil {
-		slog.Warn("feishu_webhook: failed to load settings for ops alert", "error", err)
-		return
-	}
-	if settings[SettingKeyFeishuWebhookEnabled] != "true" {
-		slog.Debug("feishu_webhook: ops alert skipped, global webhook disabled", "rule_id", rule.ID)
-		return
-	}
-	webhookURL := settings[SettingKeyFeishuWebhookURL]
-	if webhookURL == "" {
-		slog.Warn("feishu_webhook: ops alert skipped, webhook URL not configured", "rule_id", rule.ID)
-		return
-	}
-	if settings[SettingKeyFeishuWebhookNotifyOps] != "true" {
-		slog.Debug("feishu_webhook: ops alert skipped, feishu_webhook_notify_ops disabled", "rule_id", rule.ID)
+	settings, webhookURL, ok := s.loadOpsWebhookSettings(ctx, rule.ID)
+	if !ok {
 		return
 	}
 
@@ -142,9 +135,63 @@ func (s *FeishuWebhookService) SendOpsAlert(ctx context.Context, rule *OpsAlertR
 		rule.Name, rule.MetricType, rule.Operator, rule.Threshold, value,
 		event.Status, event.FiredAt.Format("2006-01-02 15:04:05"), event.Description)
 
-	if err := s.post(webhookURL, title, content); err != nil {
+	style := feishuAlertStyle{emoji: "🚨", template: feishuOpsTemplate(rule.Severity)}
+	card := buildAlertCard(style, title, content, settings)
+	if err := s.postCard(webhookURL, card); err != nil {
 		slog.Error("feishu_webhook: ops alert send failed", "error", err, "rule_id", rule.ID)
 	}
+}
+
+// SendOpsAlertResolved delivers a recovery notification when an Ops monitoring alert resolves.
+func (s *FeishuWebhookService) SendOpsAlertResolved(ctx context.Context, rule *OpsAlertRule, event *OpsAlertEvent, resolvedAt time.Time) {
+	if rule == nil || event == nil {
+		return
+	}
+	settings, webhookURL, ok := s.loadOpsWebhookSettings(ctx, rule.ID)
+	if !ok {
+		return
+	}
+
+	title := fmt.Sprintf("运维告警恢复（%s）", rule.Severity)
+	content := fmt.Sprintf("规则：%s\n指标：%s %s %.2f\n状态：已恢复\n触发时间：%s\n恢复时间：%s",
+		rule.Name, rule.MetricType, rule.Operator, rule.Threshold,
+		event.FiredAt.Format("2006-01-02 15:04:05"), resolvedAt.Format("2006-01-02 15:04:05"))
+
+	style := feishuAlertStyle{emoji: "✅", template: "green"}
+	card := buildAlertCard(style, title, content, settings)
+	if err := s.postCard(webhookURL, card); err != nil {
+		slog.Error("feishu_webhook: ops alert resolved send failed", "error", err, "rule_id", rule.ID)
+	}
+}
+
+// loadOpsWebhookSettings loads the settings needed for an Ops Feishu push and reports
+// whether the push should proceed (enabled + URL set + notify_ops on).
+func (s *FeishuWebhookService) loadOpsWebhookSettings(ctx context.Context, ruleID int64) (map[string]string, string, bool) {
+	settings, err := s.settingRepo.GetMultiple(ctx, []string{
+		SettingKeyFeishuWebhookEnabled,
+		SettingKeyFeishuWebhookURL,
+		SettingKeyFeishuWebhookNotifyOps,
+		SettingKeyFeishuWebhookAtAll,
+		SettingKeyFeishuWebhookAtUserIDs,
+	})
+	if err != nil {
+		slog.Warn("feishu_webhook: failed to load settings for ops alert", "error", err)
+		return nil, "", false
+	}
+	if settings[SettingKeyFeishuWebhookEnabled] != "true" {
+		slog.Debug("feishu_webhook: ops alert skipped, global webhook disabled", "rule_id", ruleID)
+		return nil, "", false
+	}
+	webhookURL := settings[SettingKeyFeishuWebhookURL]
+	if webhookURL == "" {
+		slog.Warn("feishu_webhook: ops alert skipped, webhook URL not configured", "rule_id", ruleID)
+		return nil, "", false
+	}
+	if settings[SettingKeyFeishuWebhookNotifyOps] != "true" {
+		slog.Debug("feishu_webhook: ops alert skipped, feishu_webhook_notify_ops disabled", "rule_id", ruleID)
+		return nil, "", false
+	}
+	return settings, webhookURL, true
 }
 
 // acquireCooldown tries to set a Redis key with TTL. Returns true if the lock was acquired
@@ -162,23 +209,152 @@ func (s *FeishuWebhookService) acquireCooldown(ctx context.Context, alertType, i
 	return ok
 }
 
-// feishuTextMessage is the Feishu webhook text message payload.
-type feishuTextMessage struct {
-	MsgType string             `json:"msg_type"`
-	Content feishuTextContent  `json:"content"`
+// feishuAlertStyle holds the visual style for a Feishu alert card.
+type feishuAlertStyle struct {
+	emoji    string
+	template string // Feishu card header color template
 }
 
-type feishuTextContent struct {
-	Text string `json:"text"`
+func feishuAlertStyleFor(alertType string) feishuAlertStyle {
+	switch alertType {
+	case "balance_low":
+		return feishuAlertStyle{emoji: "💰", template: "orange"}
+	case "account_quota":
+		return feishuAlertStyle{emoji: "📊", template: "orange"}
+	case "account_rate_limited":
+		return feishuAlertStyle{emoji: "⏳", template: "red"}
+	case "account_rate_limit_recovered":
+		return feishuAlertStyle{emoji: "✅", template: "green"}
+	default:
+		return feishuAlertStyle{emoji: "🔔", template: "blue"}
+	}
 }
 
-func (s *FeishuWebhookService) post(webhookURL, title, content string) error {
-	msg := feishuTextMessage{
-		MsgType: "text",
-		Content: feishuTextContent{
-			Text: fmt.Sprintf("[Sub2API] %s\n%s", title, content),
+// feishuOpsTemplate maps an Ops alert severity to a Feishu card header color.
+func feishuOpsTemplate(severity string) string {
+	switch strings.ToUpper(strings.TrimSpace(severity)) {
+	case "P0":
+		return "red"
+	case "P1":
+		return "orange"
+	case "P2":
+		return "yellow"
+	default:
+		return "grey"
+	}
+}
+
+// feishuCardMessage is the Feishu webhook interactive card payload.
+type feishuCardMessage struct {
+	MsgType string     `json:"msg_type"`
+	Card    feishuCard `json:"card"`
+}
+
+type feishuCard struct {
+	Config   feishuCardConfig `json:"config"`
+	Header   feishuCardHeader `json:"header"`
+	Elements []any            `json:"elements"`
+}
+
+type feishuCardConfig struct {
+	WideScreenMode bool `json:"wide_screen_mode"`
+}
+
+type feishuCardHeader struct {
+	Title    feishuCardText `json:"title"`
+	Template string         `json:"template"`
+}
+
+type feishuCardText struct {
+	Tag     string `json:"tag"`
+	Content string `json:"content"`
+}
+
+type feishuCardElement struct {
+	Tag  string         `json:"tag"`
+	Text *feishuCardText `json:"text,omitempty"`
+}
+
+// buildAlertCard constructs an interactive Feishu card with a colored header,
+// emoji-prefixed title, the alert body, and an optional @mention block.
+func buildAlertCard(style feishuAlertStyle, title, content string, settings map[string]string) feishuCardMessage {
+	elements := []any{
+		feishuCardElement{
+			Tag:  "div",
+			Text: &feishuCardText{Tag: "lark_md", Content: feishuRenderBody(content)},
 		},
 	}
+
+	atAll := settings[SettingKeyFeishuWebhookAtAll] == "true"
+	atStr := buildFeishuAtString(parseFeishuUserIDs(settings[SettingKeyFeishuWebhookAtUserIDs]), atAll)
+	if atStr != "" {
+		elements = append(elements,
+			feishuCardElement{Tag: "hr"},
+			feishuCardElement{Tag: "div", Text: &feishuCardText{Tag: "lark_md", Content: atStr}},
+		)
+	}
+
+	return feishuCardMessage{
+		MsgType: "interactive",
+		Card: feishuCard{
+			Config: feishuCardConfig{WideScreenMode: true},
+			Header: feishuCardHeader{
+				Title:    feishuCardText{Tag: "plain_text", Content: fmt.Sprintf("%s [Sub2API] %s", style.emoji, title)},
+				Template: style.template,
+			},
+			Elements: elements,
+		},
+	}
+}
+
+// feishuRenderBody turns "key：value" lines into lark_md with bolded keys.
+func feishuRenderBody(content string) string {
+	lines := strings.Split(content, "\n")
+	out := make([]string, 0, len(lines))
+	for _, ln := range lines {
+		ln = strings.TrimRight(ln, " \t")
+		if ln == "" {
+			continue
+		}
+		if idx := strings.Index(ln, "："); idx >= 0 {
+			out = append(out, fmt.Sprintf("**%s：**%s", ln[:idx], ln[idx+len("："):]))
+		} else {
+			out = append(out, ln)
+		}
+	}
+	return strings.Join(out, "\n")
+}
+
+// parseFeishuUserIDs splits a raw setting string into Feishu user/open IDs.
+func parseFeishuUserIDs(raw string) []string {
+	if strings.TrimSpace(raw) == "" {
+		return nil
+	}
+	return strings.FieldsFunc(raw, func(r rune) bool {
+		switch r {
+		case ',', '\n', '\r', '\t', ' ', ';', '；', '，':
+			return true
+		}
+		return false
+	})
+}
+
+// buildFeishuAtString builds the lark_md <at> block for the configured mention targets.
+func buildFeishuAtString(openIDs []string, atAll bool) string {
+	parts := make([]string, 0, len(openIDs)+1)
+	if atAll {
+		parts = append(parts, "<at id=all></at>")
+	}
+	for _, id := range openIDs {
+		id = strings.TrimSpace(id)
+		if id != "" {
+			parts = append(parts, fmt.Sprintf("<at id=%s></at>", id))
+		}
+	}
+	return strings.Join(parts, " ")
+}
+
+func (s *FeishuWebhookService) postCard(webhookURL string, msg feishuCardMessage) error {
 	body, err := json.Marshal(msg)
 	if err != nil {
 		return fmt.Errorf("marshal message: %w", err)

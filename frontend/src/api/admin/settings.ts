@@ -536,6 +536,8 @@ export interface SystemSettings {
   feishu_webhook_notify_balance: boolean;
   feishu_webhook_notify_account: boolean;
   feishu_webhook_notify_ops: boolean;
+  feishu_webhook_at_all: boolean;
+  feishu_webhook_at_user_ids: string;
 }
 
 export interface UpdateSettingsRequest {
@@ -739,6 +741,8 @@ export interface UpdateSettingsRequest {
   feishu_webhook_notify_balance?: boolean;
   feishu_webhook_notify_account?: boolean;
   feishu_webhook_notify_ops?: boolean;
+  feishu_webhook_at_all?: boolean;
+  feishu_webhook_at_user_ids?: string;
 }
 
 /**

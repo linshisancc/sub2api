@@ -203,6 +203,8 @@ type SystemSettings struct {
 	FeishuWebhookNotifyBalance   bool
 	FeishuWebhookNotifyAccount   bool
 	FeishuWebhookNotifyOps       bool
+	FeishuWebhookAtAll           bool
+	FeishuWebhookAtUserIDs       string
 }
 
 type DefaultSubscriptionSetting struct {
