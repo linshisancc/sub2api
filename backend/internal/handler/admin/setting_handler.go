@@ -244,6 +244,8 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		FeishuWebhookNotifyBalance:             settings.FeishuWebhookNotifyBalance,
 		FeishuWebhookNotifyAccount:             settings.FeishuWebhookNotifyAccount,
 		FeishuWebhookNotifyOps:                 settings.FeishuWebhookNotifyOps,
+		FeishuWebhookAtAll:                     settings.FeishuWebhookAtAll,
+		FeishuWebhookAtUserIDs:                 settings.FeishuWebhookAtUserIDs,
 		PaymentEnabled:                         paymentCfg.Enabled,
 		PaymentMinAmount:                       paymentCfg.MinAmount,
 		PaymentMaxAmount:                       paymentCfg.MaxAmount,
@@ -549,6 +551,8 @@ type UpdateSettingsRequest struct {
 	FeishuWebhookNotifyBalance   *bool   `json:"feishu_webhook_notify_balance"`
 	FeishuWebhookNotifyAccount   *bool   `json:"feishu_webhook_notify_account"`
 	FeishuWebhookNotifyOps       *bool   `json:"feishu_webhook_notify_ops"`
+	FeishuWebhookAtAll           *bool   `json:"feishu_webhook_at_all"`
+	FeishuWebhookAtUserIDs       *string `json:"feishu_webhook_at_user_ids"`
 
 	// Payment configuration (integrated into settings, full replace)
 	PaymentEnabled                   *bool    `json:"payment_enabled"`
@@ -1548,6 +1552,18 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 				return *req.FeishuWebhookNotifyOps
 			}
 			return previousSettings.FeishuWebhookNotifyOps
+		}(),
+		FeishuWebhookAtAll: func() bool {
+			if req.FeishuWebhookAtAll != nil {
+				return *req.FeishuWebhookAtAll
+			}
+			return previousSettings.FeishuWebhookAtAll
+		}(),
+		FeishuWebhookAtUserIDs: func() string {
+			if req.FeishuWebhookAtUserIDs != nil {
+				return *req.FeishuWebhookAtUserIDs
+			}
+			return previousSettings.FeishuWebhookAtUserIDs
 		}(),
 		ChannelMonitorEnabled: func() bool {
 			if req.ChannelMonitorEnabled != nil {

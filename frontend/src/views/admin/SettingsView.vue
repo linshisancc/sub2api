@@ -6084,6 +6084,23 @@
                   />
                   <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">同类告警触发后，冷却期内不重复推送，默认 30 分钟，最大 1440 分钟（24 小时）。</p>
                 </div>
+                <div class="flex items-center justify-between">
+                  <div>
+                    <p class="text-sm font-medium text-gray-700 dark:text-gray-300">@所有人</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">推送告警卡片时 @所有人。</p>
+                  </div>
+                  <Toggle v-model="form.feishu_webhook_at_all" />
+                </div>
+                <div>
+                  <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">@指定成员</label>
+                  <textarea
+                    v-model="form.feishu_webhook_at_user_ids"
+                    rows="3"
+                    class="input"
+                    placeholder="ou_xxxxxxxxxxxxxxxx&#10;ou_yyyyyyyyyyyyyyyy"
+                  ></textarea>
+                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">推送时 @ 指定成员，填写飞书 open_id，每行一个（也支持逗号 / 分号分隔）。</p>
+                </div>
               </div>
             </div>
           </div>
@@ -6517,6 +6534,8 @@ type SettingsForm = Omit<
   feishu_webhook_notify_balance: boolean;
   feishu_webhook_notify_account: boolean;
   feishu_webhook_notify_ops: boolean;
+  feishu_webhook_at_all: boolean;
+  feishu_webhook_at_user_ids: string;
 };
 
 const form = reactive<SettingsForm>({
@@ -6703,6 +6722,8 @@ const form = reactive<SettingsForm>({
   feishu_webhook_notify_balance: true,
   feishu_webhook_notify_account: true,
   feishu_webhook_notify_ops: false,
+  feishu_webhook_at_all: false,
+  feishu_webhook_at_user_ids: "",
   // Channel Monitor feature switch
   channel_monitor_enabled: true,
   channel_monitor_default_interval_seconds: 60,
@@ -7815,6 +7836,8 @@ async function saveSettings() {
       feishu_webhook_notify_balance: form.feishu_webhook_notify_balance,
       feishu_webhook_notify_account: form.feishu_webhook_notify_account,
       feishu_webhook_notify_ops: form.feishu_webhook_notify_ops,
+      feishu_webhook_at_all: form.feishu_webhook_at_all,
+      feishu_webhook_at_user_ids: form.feishu_webhook_at_user_ids,
       // Channel Monitor feature switch
       channel_monitor_enabled: form.channel_monitor_enabled,
       channel_monitor_default_interval_seconds:

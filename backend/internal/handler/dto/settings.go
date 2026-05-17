@@ -215,6 +215,8 @@ type SystemSettings struct {
 	FeishuWebhookNotifyBalance   bool   `json:"feishu_webhook_notify_balance"`
 	FeishuWebhookNotifyAccount   bool   `json:"feishu_webhook_notify_account"`
 	FeishuWebhookNotifyOps       bool   `json:"feishu_webhook_notify_ops"`
+	FeishuWebhookAtAll           bool   `json:"feishu_webhook_at_all"`
+	FeishuWebhookAtUserIDs       string `json:"feishu_webhook_at_user_ids"`
 
 	// Channel Monitor feature switch
 	ChannelMonitorEnabled                bool `json:"channel_monitor_enabled"`

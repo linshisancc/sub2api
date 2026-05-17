@@ -391,6 +391,8 @@ const (
 	SettingKeyFeishuWebhookNotifyBalance   = "feishu_webhook_notify_balance"   // 推送余额不足
 	SettingKeyFeishuWebhookNotifyAccount   = "feishu_webhook_notify_account"   // 推送账号额度超限
 	SettingKeyFeishuWebhookNotifyOps       = "feishu_webhook_notify_ops"       // 推送监控告警
+	SettingKeyFeishuWebhookAtAll           = "feishu_webhook_at_all"           // 推送时 @所有人
+	SettingKeyFeishuWebhookAtUserIDs       = "feishu_webhook_at_user_ids"      // 推送时 @指定成员（open_id 列表）
 
 	// Web Search Emulation
 	SettingKeyWebSearchEmulationConfig = "web_search_emulation_config" // JSON 配置
