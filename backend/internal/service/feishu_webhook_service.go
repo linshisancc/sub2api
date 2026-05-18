@@ -12,6 +12,7 @@ import (
 	"time"
 
 	httppool "github.com/Wei-Shaw/sub2api/internal/pkg/httpclient"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -133,7 +134,7 @@ func (s *FeishuWebhookService) SendOpsAlert(ctx context.Context, rule *OpsAlertR
 	title := fmt.Sprintf("运维告警（%s）", rule.Severity)
 	content := fmt.Sprintf("规则：%s\n指标：%s %s %.2f（当前 %s）\n状态：%s\n触发时间：%s\n说明：%s",
 		rule.Name, rule.MetricType, rule.Operator, rule.Threshold, value,
-		event.Status, event.FiredAt.Format("2006-01-02 15:04:05"), event.Description)
+		event.Status, event.FiredAt.In(timezone.Location()).Format("2006-01-02 15:04:05"), event.Description)
 
 	style := feishuAlertStyle{emoji: "🚨", template: feishuOpsTemplate(rule.Severity)}
 	card := buildAlertCard(style, title, content, settings)
@@ -155,7 +156,7 @@ func (s *FeishuWebhookService) SendOpsAlertResolved(ctx context.Context, rule *O
 	title := fmt.Sprintf("运维告警恢复（%s）", rule.Severity)
 	content := fmt.Sprintf("规则：%s\n指标：%s %s %.2f\n状态：已恢复\n触发时间：%s\n恢复时间：%s",
 		rule.Name, rule.MetricType, rule.Operator, rule.Threshold,
-		event.FiredAt.Format("2006-01-02 15:04:05"), resolvedAt.Format("2006-01-02 15:04:05"))
+		event.FiredAt.In(timezone.Location()).Format("2006-01-02 15:04:05"), resolvedAt.In(timezone.Location()).Format("2006-01-02 15:04:05"))
 
 	style := feishuAlertStyle{emoji: "✅", template: "green"}
 	card := buildAlertCard(style, title, content, settings)
