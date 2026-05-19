@@ -14,6 +14,7 @@
 - [账号调度策略](#账号调度策略)
 - [订阅配额系统](#订阅配额系统)
 - [通知告警系统](#通知告警系统)
+- [风控中心](#风控中心)
 - [功能全景总结](#功能全景总结)
 - [扩展设计](#扩展设计)
 
@@ -414,8 +415,77 @@ flowchart TD
 | **用量分析** | `service/dashboard_service.go` | 趋势图、模型分布、分组统计 |
 | **账号管理** | `handler/admin/account_handler.go` | OAuth/ApiKey 多类型、用量窗口监控 |
 | **通知告警** | `service/balance_notify_service.go`<br/>`service/feishu_webhook_service.go` | 邮件 + 飞书双通道、冷却防刷 |
+| **风控中心** | `service/content_moderation.go`<br/>`handler/admin/content_moderation_handler.go` | 内容审计、Worker 池、自动封禁、Hash 预检 |
 | **管理后台** | `frontend/src/views/admin/` | 全局配置、实时仪表盘、分组账号用量卡片 |
 | **路由注册** | `server/routes/gateway.go`<br/>`server/routes/admin.go` | 网关路由、管理 API、用户 API |
+
+---
+
+## 风控中心
+
+`risk_control_enabled` 开关同时控制**管理后台入口**（关闭时路由重定向，开启时菜单可见）和**网关内容审计链路**两个层面。
+
+### 审计链路
+
+```mermaid
+flowchart TD
+    REQ[网关收到请求] --> CHECK{开关 + 分组范围<br/>+ 采样率?}
+    CHECK -- 跳过 --> PASS[直接转发上游]
+    CHECK -- 命中 --> HASH{Hash 黑名单<br/>预检?}
+    HASH -- 已标记 --> BLOCK[拒绝 403]
+    HASH -- 未命中 --> MODE{审计模式}
+    MODE -- pre_block --> SYNC[同步调 Moderation API]
+    MODE -- observe --> ASYNC[异步 Worker 池处理]
+    SYNC & ASYNC --> LOG[写审计日志]
+    LOG --> VIOL{内容被标记?}
+    VIOL -- 否 --> PASS
+    VIOL -- 是 --> RECORD[Hash 写入 Redis 黑名单]
+    RECORD --> BAN{违规次数<br/>> 阈值?}
+    BAN -- 否 --> MODE_ACT{pre_block?}
+    MODE_ACT -- 是 --> BLOCK
+    MODE_ACT -- 否 --> PASS
+    BAN -- 是 --> DISABLE[封禁用户 + 发邮件]
+    DISABLE --> MODE_ACT
+```
+
+**审计模式**
+
+| 模式 | 行为 |
+|------|------|
+| `pre_block` | 同步检测，违规拦截返回 403 |
+| `observe` | 异步记录，不拦截请求 |
+| `off` | 关闭审计 |
+
+### 核心机制
+
+**Worker 池**：固定大小的 goroutine 池（默认 4 个，最大 32），`observe` 模式下异步入队不阻塞请求链路；队列满时丢弃任务并计数。
+
+**API Key 熔断**：多 Key 轮询，按 HTTP 状态码自动冻结（401/403 冻结 10 分钟，429 冻结 1 分钟，其他错误 10 秒）。
+
+**数据脱敏**：输入内容送审前自动屏蔽 URL、Bearer Token、JWT、API Key、HEX 串、UUID 等敏感信息。
+
+**Hash 预检**：违规内容的 SHA256 Hash 写入 Redis 黑名单，相同输入再次请求时直接拦截，无需调用 API。
+
+**采样率**：基于 Hash 确定性采样（0–100%），相同输入采样决策始终一致。
+
+**自动封禁**：`violation_window_hours` 内违规次数超过 `ban_threshold`（默认 10 次 / 30 天）则封禁用户并清除 Redis 鉴权缓存；计数在每次封禁后重置。
+
+**日志清理**：后台 Worker 每 24 小时执行一次，命中日志默认保留 180 天，未命中日志保留 3 天。
+
+### 核心文件
+
+| 文件 | 职责 |
+|------|------|
+| `service/content_moderation.go` | 主服务：Worker 池、审计调度、封禁、日志 |
+| `service/content_moderation_input.go` | 多协议输入提取（Anthropic / OpenAI / Gemini） |
+| `service/content_moderation_redact.go` | 数据脱敏 |
+| `service/content_moderation_hash_cache.go` | Redis Hash 黑名单 |
+| `handler/admin/content_moderation_handler.go` | HTTP 处理器（`/admin/risk-control/*`） |
+| `handler/content_moderation_helper.go` | 网关集成点 |
+
+### 混合渠道风险检查
+
+与风控开关**相互独立**，始终生效。创建或编辑账号时，若将 **Antigravity** 和 **Anthropic** 账号放入同一分组，系统弹出警告（可确认后强制继续）。实现位于 `service/admin_service.go: checkMixedChannelRisk()`。
 
 ---
 
