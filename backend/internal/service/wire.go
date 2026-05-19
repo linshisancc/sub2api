@@ -227,6 +227,7 @@ func ProvideRateLimitService(
 	svc.SetSettingService(settingService)
 	svc.SetTokenCacheInvalidator(tokenCacheInvalidator)
 	svc.SetFeishuWebhookService(feishuWebhook)
+	svc.StartRecoveryScanner()
 	return svc
 }
 

@@ -59,6 +59,9 @@ type AccountRepository interface {
 	ListSchedulableUngroupedByPlatform(ctx context.Context, platform string) ([]Account, error)
 	ListSchedulableUngroupedByPlatforms(ctx context.Context, platforms []string) ([]Account, error)
 
+	// ListExpiredRateLimitedAccounts returns active accounts whose rate_limit_reset_at is set
+	// and has already passed. Used by the background scanner to send recovery notifications.
+	ListExpiredRateLimitedAccounts(ctx context.Context) ([]Account, error)
 	SetRateLimited(ctx context.Context, id int64, resetAt time.Time) error
 	SetModelRateLimit(ctx context.Context, id int64, scope string, resetAt time.Time) error
 	SetOverloaded(ctx context.Context, id int64, until time.Time) error

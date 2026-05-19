@@ -229,6 +229,15 @@ func (s *OpsAlertEvaluatorService) evaluateOnce(interval time.Duration) {
 		metricValue, ok := s.computeRuleMetric(ctx, rule, systemMetrics, windowStart, windowEnd, scopePlatform, scopeGroupID)
 		if !ok {
 			s.resetRuleState(rule.ID, now)
+			// No data in window: not a breach, but still resolve any active firing event so it
+			// doesn't stay stuck forever when traffic drops to zero after a rate-limit clears.
+			if ae, aeErr := s.opsRepo.GetActiveAlertEvent(ctx, rule.ID); aeErr == nil && ae != nil {
+				resolvedAt := now
+				if err := s.opsRepo.UpdateAlertEventStatus(ctx, ae.ID, OpsAlertStatusResolved, &resolvedAt); err == nil {
+					eventsResolved++
+					s.maybeSendAlertResolvedFeishu(ctx, runtimeCfg, rule, ae, resolvedAt)
+				}
+			}
 			continue
 		}
 		rulesEvaluated++

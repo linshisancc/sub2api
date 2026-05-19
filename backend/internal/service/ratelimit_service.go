@@ -1472,6 +1472,36 @@ func (s *RateLimitService) ResetOpenAI403Counter(ctx context.Context, accountID 
 	}
 }
 
+// StartRecoveryScanner starts a background goroutine that periodically detects accounts
+// whose rate_limit_reset_at has expired and clears their rate-limit state, triggering
+// a recovery Webhook notification. This covers the case where no request is routed to
+// the account immediately after the window resets (so EvaluatePassiveStatus never fires).
+func (s *RateLimitService) StartRecoveryScanner() {
+	go func() {
+		ticker := time.NewTicker(2 * time.Minute)
+		defer ticker.Stop()
+		for range ticker.C {
+			s.scanExpiredRateLimits()
+		}
+	}()
+}
+
+func (s *RateLimitService) scanExpiredRateLimits() {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	accounts, err := s.accountRepo.ListExpiredRateLimitedAccounts(ctx)
+	if err != nil {
+		slog.Warn("rate_limit_recovery_scan_failed", "error", err)
+		return
+	}
+	for i := range accounts {
+		if err := s.ClearRateLimit(ctx, accounts[i].ID); err != nil {
+			slog.Warn("rate_limit_recovery_clear_failed", "account_id", accounts[i].ID, "error", err)
+		}
+	}
+}
+
 // RecoverAccountState 按需恢复账号的可恢复运行时状态。
 func (s *RateLimitService) RecoverAccountState(ctx context.Context, accountID int64, options AccountRecoveryOptions) (*SuccessfulTestRecoveryResult, error) {
 	account, err := s.accountRepo.GetByID(ctx, accountID)
