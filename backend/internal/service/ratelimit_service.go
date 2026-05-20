@@ -1427,9 +1427,11 @@ func (s *RateLimitService) UpdateSessionWindow(ctx context.Context, account *Acc
 
 // ClearRateLimit 清除账号的限流状态
 func (s *RateLimitService) ClearRateLimit(ctx context.Context, accountID int64) error {
-	// 记录清理前是否处于限流状态，用于在恢复后推送飞书告警。
+	// 记录清理前 DB 中是否登记了限流状态，用于在恢复后推送飞书告警。
+	// 这里不能用 IsRateLimited()——它在窗口已过期时返回 false，会让后台扫描器
+	// (扫的就是窗口已过期账号) 永远走不到通知分支。
 	var recoveredAccount *Account
-	if acc, err := s.accountRepo.GetByID(ctx, accountID); err == nil && acc != nil && acc.IsRateLimited() {
+	if acc, err := s.accountRepo.GetByID(ctx, accountID); err == nil && acc != nil && acc.RateLimitResetAt != nil {
 		recoveredAccount = acc
 	}
 
