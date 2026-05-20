@@ -565,6 +565,15 @@ export interface SystemSettings {
   feishu_webhook_notify_ops: boolean;
   feishu_webhook_at_all: boolean;
   feishu_webhook_at_user_ids: string;
+  feishu_webhook_notify_warmup: boolean;
+
+  // Scheduled Account Warmup
+  scheduled_warmup_enabled: boolean;
+  scheduled_warmup_cron: string;
+  scheduled_warmup_workday_only: boolean;
+  scheduled_warmup_holidays: string[];
+  scheduled_warmup_extra_workdays: string[];
+  scheduled_warmup_platforms: string[];
 }
 
 export interface UpdateSettingsRequest {
@@ -793,6 +802,49 @@ export interface UpdateSettingsRequest {
   feishu_webhook_notify_ops?: boolean;
   feishu_webhook_at_all?: boolean;
   feishu_webhook_at_user_ids?: string;
+  feishu_webhook_notify_warmup?: boolean;
+
+  // Scheduled Account Warmup
+  scheduled_warmup_enabled?: boolean;
+  scheduled_warmup_cron?: string;
+  scheduled_warmup_workday_only?: boolean;
+  scheduled_warmup_holidays?: string[];
+  scheduled_warmup_extra_workdays?: string[];
+  scheduled_warmup_platforms?: string[];
+}
+
+/**
+ * Scheduled warmup manual run response.
+ */
+export interface ScheduledWarmupRunResult {
+  executed_at: string;
+  source: string;
+  platforms: string[];
+  total: number;
+  success: number;
+  failed: number;
+  failures: Array<{
+    AccountID: number;
+    Name: string;
+    Platform: string;
+    Error: string;
+  }>;
+  duration_ms: number;
+  list_error?: string;
+}
+
+/**
+ * Trigger an immediate warmup run, bypassing cron + workday guard. The
+ * "already ran today" idempotency is still honored unless force=true.
+ */
+export async function runScheduledWarmupNow(
+  force = false,
+): Promise<ScheduledWarmupRunResult> {
+  const { data } = await apiClient.post<ScheduledWarmupRunResult>(
+    "/admin/settings/scheduled-warmup/run-now",
+    { force },
+  );
+  return data;
 }
 
 /**
@@ -1301,6 +1353,7 @@ export const settingsAPI = {
   updateWebSearchEmulationConfig,
   testWebSearchEmulation,
   resetWebSearchUsage,
+  runScheduledWarmupNow,
 };
 
 export default settingsAPI;

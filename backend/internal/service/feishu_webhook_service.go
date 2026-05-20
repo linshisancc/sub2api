@@ -115,6 +115,133 @@ func (s *FeishuWebhookService) SendAccountRateLimitRecovered(ctx context.Context
 	s.Send(ctx, "account_rate_limit_recovered", strconv.FormatInt(account.ID, 10), title, content)
 }
 
+// SendScheduledWarmupSummary delivers a single Feishu card summarizing one
+// scheduled account-warmup run. Gated by feishu_webhook_notify_warmup. It does
+// not use the per-type Redis cooldown — the warmup task has its own
+// "once per day" idempotency in settings (scheduled_warmup_last_run_date).
+func (s *FeishuWebhookService) SendScheduledWarmupSummary(ctx context.Context, summary *WarmupSummary) {
+	if s == nil || summary == nil {
+		return
+	}
+	settings, err := s.settingRepo.GetMultiple(ctx, []string{
+		SettingKeyFeishuWebhookEnabled,
+		SettingKeyFeishuWebhookURL,
+		SettingKeyFeishuWebhookNotifyWarmup,
+		SettingKeyFeishuWebhookAtAll,
+		SettingKeyFeishuWebhookAtUserIDs,
+	})
+	if err != nil {
+		slog.Warn("feishu_webhook: failed to load settings for warmup summary", "error", err)
+		return
+	}
+	if settings[SettingKeyFeishuWebhookEnabled] != "true" {
+		return
+	}
+	webhookURL := settings[SettingKeyFeishuWebhookURL]
+	if webhookURL == "" {
+		return
+	}
+	if settings[SettingKeyFeishuWebhookNotifyWarmup] != "true" {
+		return
+	}
+
+	title := "账号 Warmup 完成"
+	style := feishuAlertStyle{emoji: "🌅", template: "blue"}
+	if len(summary.Failures) > 0 {
+		style.template = "orange"
+		title = "账号 Warmup 完成（含失败）"
+	}
+	if summary.ListError != "" {
+		style.template = "red"
+		title = "账号 Warmup 失败"
+	}
+
+	content := buildWarmupCardBody(summary)
+	card := buildAlertCard(style, title, content, settings)
+	if err := s.postCard(webhookURL, card); err != nil {
+		slog.Error("feishu_webhook: warmup summary send failed", "error", err)
+	}
+}
+
+// buildWarmupCardBody formats the WarmupSummary into the lark_md body used by
+// buildAlertCard. Failure list is capped at 8 lines.
+func buildWarmupCardBody(summary *WarmupSummary) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "时间：%s\n", summary.ExecutedAt.Format("2006-01-02 15:04:05"))
+	if summary.Source != "" {
+		fmt.Fprintf(&b, "触发来源：%s\n", summary.Source)
+	}
+	if len(summary.Platforms) > 0 {
+		fmt.Fprintf(&b, "覆盖平台：%s\n", strings.Join(summary.Platforms, ", "))
+	}
+	fmt.Fprintf(&b, "共处理：%d 个账号\n", summary.Total)
+	fmt.Fprintf(&b, "耗时：%d ms\n", summary.DurationMs)
+
+	if summary.ListError != "" {
+		fmt.Fprintf(&b, "拉取账号失败：%s\n", summary.ListError)
+		return b.String()
+	}
+
+	successCounts := countByPlatform(summary.Successes)
+	fmt.Fprintf(&b, "✅ 成功：%d\n", len(summary.Successes))
+	if len(successCounts) > 0 {
+		fmt.Fprintf(&b, "  %s\n", formatPlatformCounts(successCounts))
+	}
+
+	if len(summary.Failures) > 0 {
+		fmt.Fprintf(&b, "❌ 失败：%d\n", len(summary.Failures))
+		const maxFailLines = 8
+		for i, f := range summary.Failures {
+			if i >= maxFailLines {
+				fmt.Fprintf(&b, "  • + %d more …\n", len(summary.Failures)-maxFailLines)
+				break
+			}
+			fmt.Fprintf(&b, "  • %s (%s) — %s\n", f.Name, f.Platform, truncateForCard(f.Error, 120))
+		}
+	}
+	return b.String()
+}
+
+func countByPlatform(items []WarmupAccountResult) map[string]int {
+	counts := make(map[string]int)
+	for _, it := range items {
+		counts[it.Platform]++
+	}
+	return counts
+}
+
+func formatPlatformCounts(counts map[string]int) string {
+	keys := make([]string, 0, len(counts))
+	for k := range counts {
+		keys = append(keys, k)
+	}
+	// stable order: alphabetical
+	for i := 0; i < len(keys); i++ {
+		for j := i + 1; j < len(keys); j++ {
+			if keys[j] < keys[i] {
+				keys[i], keys[j] = keys[j], keys[i]
+			}
+		}
+	}
+	parts := make([]string, 0, len(keys))
+	for _, k := range keys {
+		parts = append(parts, fmt.Sprintf("%s: %d", k, counts[k]))
+	}
+	return strings.Join(parts, ", ")
+}
+
+func truncateForCard(s string, n int) string {
+	if n <= 0 || len(s) <= n {
+		return s
+	}
+	// Truncate by runes to avoid splitting multibyte.
+	rr := []rune(s)
+	if len(rr) <= n {
+		return s
+	}
+	return string(rr[:n]) + "…"
+}
+
 // SendOpsAlert delivers an Ops monitoring alert to the Feishu webhook.
 // Unlike Send, it bypasses the per-type toggle and the Redis cooldown — the Ops
 // alert module already owns its own cooldown/sustained/silencing throttling.

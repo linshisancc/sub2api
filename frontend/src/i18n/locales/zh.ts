@@ -5359,6 +5359,7 @@ export default {
         gateway: '网关服务',
         email: '邮件设置',
         feishu: '飞书 Webhook',
+        warmup: '定时 Warmup',
         backup: '数据备份',
         payment: '支付设置',
       },

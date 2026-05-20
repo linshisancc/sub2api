@@ -64,6 +64,7 @@ type SettingHandler struct {
 	paymentService           *service.PaymentService
 	userAttributeService     *service.UserAttributeService
 	notificationEmailService *service.NotificationEmailService
+	accountWarmupService     *service.AccountWarmupService
 }
 
 // NewSettingHandler 创建系统设置处理器
@@ -83,6 +84,45 @@ func NewSettingHandler(settingService *service.SettingService, emailService *ser
 // the constructor signature used by existing unit tests.
 func (h *SettingHandler) SetNotificationEmailService(notificationEmailService *service.NotificationEmailService) {
 	h.notificationEmailService = notificationEmailService
+}
+
+// SetAccountWarmupService attaches the warmup runner so the admin endpoint can
+// trigger a manual run. Attached after wiring to avoid changing the constructor
+// signature used in unit tests.
+func (h *SettingHandler) SetAccountWarmupService(svc *service.AccountWarmupService) {
+	h.accountWarmupService = svc
+}
+
+// RunScheduledWarmupNow triggers an immediate warmup run, bypassing the cron
+// schedule and the workday-only guard. The "already executed today"
+// idempotency guard is still respected unless `force=true` is in the body.
+// POST /api/v1/admin/settings/scheduled-warmup/run-now
+func (h *SettingHandler) RunScheduledWarmupNow(c *gin.Context) {
+	if h.accountWarmupService == nil {
+		response.Error(c, http.StatusServiceUnavailable, "warmup service unavailable")
+		return
+	}
+	var req struct {
+		Force bool `json:"force"`
+	}
+	_ = c.ShouldBindJSON(&req) // body is optional
+
+	summary, err := h.accountWarmupService.RunNow(c.Request.Context(), req.Force)
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	response.Success(c, gin.H{
+		"executed_at": summary.ExecutedAt,
+		"source":      summary.Source,
+		"platforms":   summary.Platforms,
+		"total":       summary.Total,
+		"success":     len(summary.Successes),
+		"failed":      len(summary.Failures),
+		"failures":    summary.Failures,
+		"duration_ms": summary.DurationMs,
+		"list_error":  summary.ListError,
+	})
 }
 
 // GetSettings 获取所有系统设置
@@ -274,6 +314,13 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		FeishuWebhookNotifyOps:                 settings.FeishuWebhookNotifyOps,
 		FeishuWebhookAtAll:                     settings.FeishuWebhookAtAll,
 		FeishuWebhookAtUserIDs:                 settings.FeishuWebhookAtUserIDs,
+		FeishuWebhookNotifyWarmup:              settings.FeishuWebhookNotifyWarmup,
+		ScheduledWarmupEnabled:                 settings.ScheduledWarmupEnabled,
+		ScheduledWarmupCron:                    settings.ScheduledWarmupCron,
+		ScheduledWarmupWorkdayOnly:             settings.ScheduledWarmupWorkdayOnly,
+		ScheduledWarmupHolidays:                settings.ScheduledWarmupHolidays,
+		ScheduledWarmupExtraWorkdays:           settings.ScheduledWarmupExtraWorkdays,
+		ScheduledWarmupPlatforms:               settings.ScheduledWarmupPlatforms,
 		PaymentEnabled:                         paymentCfg.Enabled,
 		PaymentMinAmount:                       paymentCfg.MinAmount,
 		PaymentMaxAmount:                       paymentCfg.MaxAmount,
@@ -606,6 +653,15 @@ type UpdateSettingsRequest struct {
 	FeishuWebhookNotifyOps       *bool   `json:"feishu_webhook_notify_ops"`
 	FeishuWebhookAtAll           *bool   `json:"feishu_webhook_at_all"`
 	FeishuWebhookAtUserIDs       *string `json:"feishu_webhook_at_user_ids"`
+	FeishuWebhookNotifyWarmup    *bool   `json:"feishu_webhook_notify_warmup"`
+
+	// Scheduled Account Warmup
+	ScheduledWarmupEnabled       *bool     `json:"scheduled_warmup_enabled"`
+	ScheduledWarmupCron          *string   `json:"scheduled_warmup_cron"`
+	ScheduledWarmupWorkdayOnly   *bool     `json:"scheduled_warmup_workday_only"`
+	ScheduledWarmupHolidays      *[]string `json:"scheduled_warmup_holidays"`
+	ScheduledWarmupExtraWorkdays *[]string `json:"scheduled_warmup_extra_workdays"`
+	ScheduledWarmupPlatforms     *[]string `json:"scheduled_warmup_platforms"`
 
 	// Payment configuration (integrated into settings, full replace)
 	PaymentEnabled                   *bool    `json:"payment_enabled"`
@@ -672,6 +728,10 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 	}
 
 	// 验证参数
+	if err := validateScheduledWarmupRequest(&req); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
 	if req.DefaultConcurrency < 1 {
 		req.DefaultConcurrency = 1
 	}
@@ -1746,6 +1806,48 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 				return *req.FeishuWebhookAtUserIDs
 			}
 			return previousSettings.FeishuWebhookAtUserIDs
+		}(),
+		FeishuWebhookNotifyWarmup: func() bool {
+			if req.FeishuWebhookNotifyWarmup != nil {
+				return *req.FeishuWebhookNotifyWarmup
+			}
+			return previousSettings.FeishuWebhookNotifyWarmup
+		}(),
+		ScheduledWarmupEnabled: func() bool {
+			if req.ScheduledWarmupEnabled != nil {
+				return *req.ScheduledWarmupEnabled
+			}
+			return previousSettings.ScheduledWarmupEnabled
+		}(),
+		ScheduledWarmupCron: func() string {
+			if req.ScheduledWarmupCron != nil {
+				return *req.ScheduledWarmupCron
+			}
+			return previousSettings.ScheduledWarmupCron
+		}(),
+		ScheduledWarmupWorkdayOnly: func() bool {
+			if req.ScheduledWarmupWorkdayOnly != nil {
+				return *req.ScheduledWarmupWorkdayOnly
+			}
+			return previousSettings.ScheduledWarmupWorkdayOnly
+		}(),
+		ScheduledWarmupHolidays: func() []string {
+			if req.ScheduledWarmupHolidays != nil {
+				return *req.ScheduledWarmupHolidays
+			}
+			return previousSettings.ScheduledWarmupHolidays
+		}(),
+		ScheduledWarmupExtraWorkdays: func() []string {
+			if req.ScheduledWarmupExtraWorkdays != nil {
+				return *req.ScheduledWarmupExtraWorkdays
+			}
+			return previousSettings.ScheduledWarmupExtraWorkdays
+		}(),
+		ScheduledWarmupPlatforms: func() []string {
+			if req.ScheduledWarmupPlatforms != nil {
+				return *req.ScheduledWarmupPlatforms
+			}
+			return previousSettings.ScheduledWarmupPlatforms
 		}(),
 		ChannelMonitorEnabled: func() bool {
 			if req.ChannelMonitorEnabled != nil {
@@ -3589,4 +3691,29 @@ func emailTemplatePlaceholderUnion(events []service.NotificationEmailEventInfo) 
 		}
 	}
 	return placeholders
+}
+
+// validateScheduledWarmupRequest checks the scheduled-warmup fields submitted
+// in an UpdateSettings request. Only fields the caller actually included
+// (non-nil pointers) are validated.
+func validateScheduledWarmupRequest(req *UpdateSettingsRequest) error {
+	if req == nil {
+		return nil
+	}
+	if req.ScheduledWarmupCron != nil {
+		if err := service.ValidateWarmupCron(*req.ScheduledWarmupCron); err != nil {
+			return fmt.Errorf("scheduled_warmup_cron 无效：%w", err)
+		}
+	}
+	if req.ScheduledWarmupHolidays != nil {
+		if bad := service.ValidateWarmupDateList(*req.ScheduledWarmupHolidays); bad != "" {
+			return fmt.Errorf("scheduled_warmup_holidays 含非法日期：%q（要求 YYYY-MM-DD）", bad)
+		}
+	}
+	if req.ScheduledWarmupExtraWorkdays != nil {
+		if bad := service.ValidateWarmupDateList(*req.ScheduledWarmupExtraWorkdays); bad != "" {
+			return fmt.Errorf("scheduled_warmup_extra_workdays 含非法日期：%q（要求 YYYY-MM-DD）", bad)
+		}
+	}
+	return nil
 }

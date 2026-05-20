@@ -363,6 +363,20 @@ func ProvideScheduledTestRunnerService(
 	return svc
 }
 
+// ProvideAccountWarmupService creates and starts AccountWarmupService.
+func ProvideAccountWarmupService(
+	settingRepo SettingRepository,
+	accountRepo AccountRepository,
+	accountTestSvc *AccountTestService,
+	feishuSvc *FeishuWebhookService,
+	redisClient *redis.Client,
+	cfg *config.Config,
+) *AccountWarmupService {
+	svc := NewAccountWarmupService(settingRepo, accountRepo, accountTestSvc, feishuSvc, redisClient, cfg)
+	svc.Start()
+	return svc
+}
+
 // ProvideOpsScheduledReportService creates and starts OpsScheduledReportService.
 func ProvideOpsScheduledReportService(
 	opsService *OpsService,
@@ -514,6 +528,7 @@ var ProviderSet = wire.NewSet(
 	ProvideIdempotencyCleanupService,
 	ProvideScheduledTestService,
 	ProvideScheduledTestRunnerService,
+	ProvideAccountWarmupService,
 	NewGroupCapacityService,
 	NewChannelService,
 	NewModelPricingResolver,

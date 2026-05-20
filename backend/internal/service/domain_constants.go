@@ -423,6 +423,16 @@ const (
 	SettingKeyFeishuWebhookNotifyOps       = "feishu_webhook_notify_ops"       // 推送监控告警
 	SettingKeyFeishuWebhookAtAll           = "feishu_webhook_at_all"           // 推送时 @所有人
 	SettingKeyFeishuWebhookAtUserIDs       = "feishu_webhook_at_user_ids"      // 推送时 @指定成员（open_id 列表）
+	SettingKeyFeishuWebhookNotifyWarmup    = "feishu_webhook_notify_warmup"    // 推送账号 Warmup 汇总
+
+	// Scheduled Account Warmup
+	SettingKeyScheduledWarmupEnabled       = "scheduled_warmup_enabled"        // 总开关
+	SettingKeyScheduledWarmupCron          = "scheduled_warmup_cron"           // 5 段 cron，例如 "0 8 * * *"
+	SettingKeyScheduledWarmupWorkdayOnly   = "scheduled_warmup_workday_only"   // 仅工作日触发
+	SettingKeyScheduledWarmupHolidays      = "scheduled_warmup_holidays"       // 节假日 JSON 数组 ["2026-05-01",...]
+	SettingKeyScheduledWarmupExtraWorkdays = "scheduled_warmup_extra_workdays" // 补班日 JSON 数组
+	SettingKeyScheduledWarmupPlatforms     = "scheduled_warmup_platforms"      // 参与平台 JSON 数组
+	SettingKeyScheduledWarmupLastRunDate   = "scheduled_warmup_last_run_date"  // 上次执行的本地日期 YYYY-MM-DD（幂等）
 
 	// Web Search Emulation
 	SettingKeyWebSearchEmulationConfig = "web_search_emulation_config" // JSON 配置

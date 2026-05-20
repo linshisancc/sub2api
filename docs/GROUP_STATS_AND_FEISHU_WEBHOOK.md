@@ -9,6 +9,7 @@
 - [分组账号用量展示](#分组账号用量展示)
 - [飞书 Webhook 告警](#飞书-webhook-告警)
 - [监控告警推送飞书](#监控告警推送飞书)
+- [定时账号 Warmup](#定时账号-warmup)
 
 ---
 
@@ -105,6 +106,7 @@
 | **账号被限流** | 账号被上游服务商限流（收到 429、5h/7d 用量窗口打满等），进入「限流中」状态时触发 |
 | **账号限流恢复** | 账号退出「限流中」状态（窗口重置自动恢复，或管理员手动清除限流）时触发 |
 | **监控告警恢复** | 「监控」模块的告警策略指标回落到阈值内、告警从 firing 转为 resolved 时触发 |
+| **账号 Warmup 汇总** | 每日定时账号 Warmup 任务执行完成后，整次任务推送一次汇总卡片（详见下文「定时账号 Warmup」） |
 
 > **「账号额度超限」与「账号被限流」的区别**：前者是 sub2api 后台为账号配置的**日/周/总额度上限**（美元金额），随计费累加跨过阈值时触发，仅对 APIKey/Bedrock 账号生效；后者是**上游服务商的原生限流**（如 Anthropic 5h/7d 窗口、OpenAI/Gemini 429），由账号进入「限流中」运行时状态触发，对所有账号类型生效。两者是相互独立的信号。
 
@@ -141,6 +143,7 @@
 | 用户余额不足 | 是否推送余额不足告警 | 开启 |
 | 账号额度超限 | 是否推送账号额度超限告警**及账号被限流告警**（两类共用此开关） | 开启 |
 | 监控告警 | 是否推送「监控」模块告警策略命中的告警（详见下文「监控告警推送飞书」） | 关闭 |
+| 账号 Warmup 汇总 | 是否推送定时账号 Warmup 任务的汇总卡片（详见下文「定时账号 Warmup」） | 关闭 |
 
 > **注意**：
 > - 余额不足告警需要先在「邮件设置」中启用余额低通知全局开关；账号额度超限需要在「邮件设置」中启用并配置账号配额通知阈值。
@@ -319,3 +322,119 @@ ticker := time.NewTicker(2 * time.Minute)
 | `feishu_webhook_notify_ops` | `true` / `false`，控制「监控」模块告警策略是否推送飞书（默认 `false`） |
 | `feishu_webhook_at_all` | `true` / `false`，推送卡片时是否 @所有人（默认 `false`） |
 | `feishu_webhook_at_user_ids` | 字符串，@指定成员的飞书 open_id 列表（换行/逗号/分号分隔） |
+| `feishu_webhook_notify_warmup` | `true` / `false`，控制「定时账号 Warmup 汇总」推送 |
+| `scheduled_warmup_enabled` | `true` / `false`，定时 Warmup 总开关（默认 `false`） |
+| `scheduled_warmup_cron` | 5 段 cron 表达式，默认 `0 8 * * *` |
+| `scheduled_warmup_workday_only` | `true` / `false`，是否仅在工作日触发（默认 `true`） |
+| `scheduled_warmup_holidays` | JSON 数组 `["2026-05-01", ...]`，节假日清单 |
+| `scheduled_warmup_extra_workdays` | JSON 数组 `["2026-04-26", ...]`，补班日清单 |
+| `scheduled_warmup_platforms` | JSON 数组，参与 Warmup 的平台白名单（默认 `["anthropic","openai","gemini","antigravity"]`） |
+| `scheduled_warmup_last_run_date` | 字符串 `YYYY-MM-DD`，最近一次执行的本地日期，用于"今日已执行"幂等判断 |
+
+---
+
+## 定时账号 Warmup
+
+### 功能说明
+
+Anthropic / OpenAI / Gemini 等上游服务商对每个账号采用"首次请求时刻 + N 小时"的滚动窗口
+限流（Anthropic 5h / 7d 最典型）。如果在工作日早上 8 点之前没有任何请求，第一个用户
+请求会把当天的 5h 窗口"起点"卡到很难用的时间点（例如 10:30 第一个请求 → 一天里
+只能用 10:30–15:30 一个完整窗口，外加一段截断的下午窗口）。
+
+**定时账号 Warmup** 在工作日 08:00（可配置）由系统主动给每个可调度账号发起一条极小
+的请求（与「账号管理 → 测试连接」是同一条 SSE 链路，每次仅消耗个位数 token），
+把 5h 窗口起点钉在 08:00，确保一天能用满 08:00–13:00 与 13:00–18:00 两个完整 5h 窗口。
+
+整次任务执行结束后通过飞书推送**一张**汇总卡片，列出全部账号的成功 / 失败明细。
+**不**对每个账号单独推送 — 一天只通知一次。
+
+### 配置入口
+
+管理员后台 → **系统设置** → **定时 Warmup** Tab：
+
+| 配置项 | 说明 | 默认值 |
+|-------|------|--------|
+| 启用 | 总开关 | 关闭 |
+| 触发时间（5 段 cron） | 标准 cron 表达式 | `0 8 * * *`（每天 08:00） |
+| 仅工作日触发 | 是否限定在工作日 | 开启 |
+| 参与平台 | 复选 Anthropic / OpenAI / Gemini / Antigravity | 全选 |
+| 节假日 | 每行一个 `YYYY-MM-DD`，这些日期跳过 Warmup | — |
+| 补班日 | 每行一个 `YYYY-MM-DD`，这些日期即使周末也触发 Warmup | — |
+| 立即触发一次 | 调试 / 补救按钮；可勾选"强制"绕过当日幂等 | — |
+
+页面同时把 `feishu_webhook_notify_warmup`（飞书汇总卡片开关）镜像在「飞书 Webhook → 推送
+告警类型」卡片里，方便对照其他告警类型一起开关。
+
+### 工作日 / 节假日判定
+
+采用 **本地年度配置表**：
+
+```go
+func (c *WorkdayCalendar) IsWorkday(t time.Time) bool {
+    d := t.Format("2006-01-02")
+    if c.extraWorkdays[d] { return true }   // 补班日：覆盖周末
+    if c.holidays[d]      { return false }  // 节假日：覆盖工作日
+    wd := t.Weekday()
+    return wd != time.Saturday && wd != time.Sunday
+}
+```
+
+- 优先级：**补班日 > 节假日 > 周末判定**（同一日期同时出现在两边时，补班生效）。
+- 国务院公告通常 12 月前后发布次年节假日 / 调休安排，运维每年初手动粘贴一次即可，
+  零外部依赖、离线环境可用。
+- 后台保存时会校验 `YYYY-MM-DD` 格式，非法日期直接 400 返回。
+
+### Runner 执行流程
+
+每分钟 ticker → 一轮判定：
+
+1. 读取 `scheduled_warmup_enabled`，关闭则返回。
+2. 解析 `scheduled_warmup_cron`，判断 `now` 是否处于"上次 tick → now"区间的触发点；若否，返回。
+3. 若 `workday_only && !calendar.IsWorkday(now)`，返回。
+4. 读取 `scheduled_warmup_last_run_date`，若等于今天 `YYYY-MM-DD`，返回（幂等）。
+5. 申请 Redis 分布式锁（key=`scheduled_warmup:leader`，TTL=5 分钟，多副本部署下只允许一个副本执行）。
+6. 拉取所有 `enabled` 平台的 schedulable 账号（已排除限流中 / temp_unschedulable / expired）。
+7. 信号量 = 10 并发，对每个账号调用 `AccountTestService.RunTestBackground`（"hi" 探针，
+   消耗 token 个位数，触发 5h 窗口）；记录每条 success / failed 结果。
+8. 写入 `scheduled_warmup_last_run_date = today`。
+9. 若 `feishu_webhook_notify_warmup`，调用 `SendScheduledWarmupSummary` 发一次卡片。
+10. 释放分布式锁。
+
+### 手动触发
+
+`POST /api/v1/admin/settings/scheduled-warmup/run-now`，请求体可选 `{"force": true}`：
+
+- 不带 `force`：当日已执行过会直接 400，避免重复浪费配额。
+- 带 `force=true`：绕过当日幂等，但仍走分布式锁与"hi" 探针逻辑。
+- 响应中包含每个失败账号的明细（accountID / name / platform / error），便于排错。
+
+### 飞书卡片样例
+
+```
+🌅 [Sub2API] 账号 Warmup 完成
+时间：2026-05-21 08:00:12
+触发来源：schedule
+覆盖平台：anthropic, openai, gemini, antigravity
+共处理：42 个账号
+耗时：1234 ms
+✅ 成功：39
+  anthropic: 20, gemini: 6, openai: 13
+❌ 失败：3
+  • acct-claude-pool-3 (anthropic) — upstream 5xx
+  • acct-openai-vip (openai) — 401 invalid_api_key
+  • acct-gemini-prod (gemini) — context deadline exceeded
+```
+
+失败超过 8 条时会折叠 `+ N more …`。整次任务（含失败）只推送一张卡片；若拉取账号列表
+本身就失败（极少见），卡片头部转为红色并展示 `拉取账号失败` 段。
+
+### 与其他模块的边界
+
+| 场景 | 处理方 |
+|------|--------|
+| 上游服务商 5h / 7d 限流触发 / 恢复 | `RateLimitService` + 飞书「账号被限流 / 限流恢复」告警，**不**经过 Warmup |
+| 监控页告警策略命中 | `OpsAlertEvaluator` + 飞书监控告警，**不**经过 Warmup |
+| 每个账号自定义的"定时连通性测试" | `ScheduledTestRunnerService`（与 Warmup 共用同一条 `RunTestBackground` 路径，但调度与持久化完全独立） |
+
+Warmup 任务的 cron / 幂等键 / 分布式锁 key 与上述模块均不冲突，可安全并存。

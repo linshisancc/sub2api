@@ -238,6 +238,15 @@ type SystemSettings struct {
 	FeishuWebhookNotifyOps       bool   `json:"feishu_webhook_notify_ops"`
 	FeishuWebhookAtAll           bool   `json:"feishu_webhook_at_all"`
 	FeishuWebhookAtUserIDs       string `json:"feishu_webhook_at_user_ids"`
+	FeishuWebhookNotifyWarmup    bool   `json:"feishu_webhook_notify_warmup"`
+
+	// Scheduled Account Warmup
+	ScheduledWarmupEnabled       bool     `json:"scheduled_warmup_enabled"`
+	ScheduledWarmupCron          string   `json:"scheduled_warmup_cron"`
+	ScheduledWarmupWorkdayOnly   bool     `json:"scheduled_warmup_workday_only"`
+	ScheduledWarmupHolidays      []string `json:"scheduled_warmup_holidays"`
+	ScheduledWarmupExtraWorkdays []string `json:"scheduled_warmup_extra_workdays"`
+	ScheduledWarmupPlatforms     []string `json:"scheduled_warmup_platforms"`
 
 	// Channel Monitor feature switch
 	ChannelMonitorEnabled                bool `json:"channel_monitor_enabled"`

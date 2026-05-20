@@ -1795,6 +1795,23 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	if settings.FeishuWebhookCooldownMinutes > 0 {
 		updates[SettingKeyFeishuWebhookCooldownMinutes] = strconv.Itoa(settings.FeishuWebhookCooldownMinutes)
 	}
+	updates[SettingKeyFeishuWebhookNotifyWarmup] = strconv.FormatBool(settings.FeishuWebhookNotifyWarmup)
+
+	// Scheduled Account Warmup
+	updates[SettingKeyScheduledWarmupEnabled] = strconv.FormatBool(settings.ScheduledWarmupEnabled)
+	if cron := strings.TrimSpace(settings.ScheduledWarmupCron); cron != "" {
+		updates[SettingKeyScheduledWarmupCron] = cron
+	}
+	updates[SettingKeyScheduledWarmupWorkdayOnly] = strconv.FormatBool(settings.ScheduledWarmupWorkdayOnly)
+	if encoded, err := marshalStringArray(settings.ScheduledWarmupHolidays); err == nil {
+		updates[SettingKeyScheduledWarmupHolidays] = encoded
+	}
+	if encoded, err := marshalStringArray(settings.ScheduledWarmupExtraWorkdays); err == nil {
+		updates[SettingKeyScheduledWarmupExtraWorkdays] = encoded
+	}
+	if encoded, err := marshalStringArray(settings.ScheduledWarmupPlatforms); err == nil {
+		updates[SettingKeyScheduledWarmupPlatforms] = encoded
+	}
 
 	return updates, nil
 }
@@ -3172,6 +3189,22 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 	} else {
 		result.FeishuWebhookCooldownMinutes = feishuDefaultCooldownMinutes
 	}
+	result.FeishuWebhookNotifyWarmup = settings[SettingKeyFeishuWebhookNotifyWarmup] == "true"
+
+	// Scheduled Account Warmup
+	result.ScheduledWarmupEnabled = settings[SettingKeyScheduledWarmupEnabled] == "true"
+	result.ScheduledWarmupCron = strings.TrimSpace(settings[SettingKeyScheduledWarmupCron])
+	if result.ScheduledWarmupCron == "" {
+		result.ScheduledWarmupCron = "0 8 * * *"
+	}
+	// default true; explicit "false" disables
+	result.ScheduledWarmupWorkdayOnly = settings[SettingKeyScheduledWarmupWorkdayOnly] != "false"
+	result.ScheduledWarmupHolidays = parseStringJSONArray(settings[SettingKeyScheduledWarmupHolidays])
+	result.ScheduledWarmupExtraWorkdays = parseStringJSONArray(settings[SettingKeyScheduledWarmupExtraWorkdays])
+	result.ScheduledWarmupPlatforms = parseStringJSONArray(settings[SettingKeyScheduledWarmupPlatforms])
+	if len(result.ScheduledWarmupPlatforms) == 0 {
+		result.ScheduledWarmupPlatforms = []string{"anthropic", "openai", "gemini", "antigravity"}
+	}
 
 	return result
 }
@@ -4486,4 +4519,22 @@ func (s *SettingService) SetStreamTimeoutSettings(ctx context.Context, settings 
 	}
 
 	return s.settingRepo.Set(ctx, SettingKeyStreamTimeoutSettings, string(data))
+}
+
+// marshalStringArray encodes a clean string slice as a compact JSON array.
+// Empty / whitespace-only items are dropped. Returns "[]" for a nil or empty
+// slice so the setting always round-trips as a valid JSON array.
+func marshalStringArray(in []string) (string, error) {
+	cleaned := make([]string, 0, len(in))
+	for _, v := range in {
+		v = strings.TrimSpace(v)
+		if v != "" {
+			cleaned = append(cleaned, v)
+		}
+	}
+	b, err := json.Marshal(cleaned)
+	if err != nil {
+		return "", err
+	}
+	return string(b), nil
 }

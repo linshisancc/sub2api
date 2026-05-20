@@ -5196,6 +5196,7 @@ export default {
         gateway: 'Gateway',
         email: 'Email',
         feishu: 'Feishu Webhook',
+        warmup: 'Scheduled Warmup',
         backup: 'Backup',
         payment: 'Payment',
       },

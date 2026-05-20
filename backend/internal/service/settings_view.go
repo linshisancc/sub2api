@@ -225,6 +225,15 @@ type SystemSettings struct {
 	FeishuWebhookNotifyOps       bool
 	FeishuWebhookAtAll           bool
 	FeishuWebhookAtUserIDs       string
+	FeishuWebhookNotifyWarmup    bool
+
+	// Scheduled Account Warmup
+	ScheduledWarmupEnabled       bool
+	ScheduledWarmupCron          string
+	ScheduledWarmupWorkdayOnly   bool
+	ScheduledWarmupHolidays      []string
+	ScheduledWarmupExtraWorkdays []string
+	ScheduledWarmupPlatforms     []string
 }
 
 type DefaultSubscriptionSetting struct {
