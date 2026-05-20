@@ -57,6 +57,9 @@ func (m *sessionWindowMockRepo) ClearTempUnschedulable(_ context.Context, _ int6
 
 // --- Unused interface methods (panic on unexpected call) ---
 
+func (m *sessionWindowMockRepo) ListExpiredRateLimitedAccounts(context.Context) ([]Account, error) {
+	panic("unexpected")
+}
 func (m *sessionWindowMockRepo) Create(context.Context, *Account) error { panic("unexpected") }
 func (m *sessionWindowMockRepo) GetByID(context.Context, int64) (*Account, error) {
 	panic("unexpected")
