@@ -3700,6 +3700,9 @@ func validateScheduledWarmupRequest(req *UpdateSettingsRequest) error {
 	if req == nil {
 		return nil
 	}
+	if req.ScheduledWarmupPlatforms != nil && len(*req.ScheduledWarmupPlatforms) == 0 {
+		return fmt.Errorf("scheduled_warmup_platforms 至少选择一个平台")
+	}
 	if req.ScheduledWarmupCron != nil {
 		if err := service.ValidateWarmupCron(*req.ScheduledWarmupCron); err != nil {
 			return fmt.Errorf("scheduled_warmup_cron 无效：%w", err)

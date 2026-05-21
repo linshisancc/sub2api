@@ -1801,6 +1801,8 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	updates[SettingKeyScheduledWarmupEnabled] = strconv.FormatBool(settings.ScheduledWarmupEnabled)
 	if cron := strings.TrimSpace(settings.ScheduledWarmupCron); cron != "" {
 		updates[SettingKeyScheduledWarmupCron] = cron
+	} else {
+		updates[SettingKeyScheduledWarmupCron] = accountWarmupDefaultCron
 	}
 	updates[SettingKeyScheduledWarmupWorkdayOnly] = strconv.FormatBool(settings.ScheduledWarmupWorkdayOnly)
 	if encoded, err := marshalStringArray(settings.ScheduledWarmupHolidays); err == nil {

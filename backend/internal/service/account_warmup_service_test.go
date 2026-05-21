@@ -1,8 +1,14 @@
 package service
 
 import (
+	"context"
+	"errors"
+	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 )
 
 func mustDate(t *testing.T, s string) time.Time {
@@ -182,6 +188,288 @@ func TestBuildWarmupCardBody_TruncatesFailures(t *testing.T) {
 	})
 	if !contains(body, "+ 4 more") {
 		t.Errorf("expected 'more' truncation summary, got:\n%s", body)
+	}
+}
+
+// ---- stubs for idempotency & lock tests ----
+
+// warmupSettingStub is a minimal SettingRepository stub for warmup tests.
+type warmupSettingStub struct {
+	values  map[string]string
+	setCalls []string // keys passed to Set
+	setErr  error
+}
+
+func (s *warmupSettingStub) Get(_ context.Context, _ string) (*Setting, error) {
+	panic("unexpected: Get")
+}
+func (s *warmupSettingStub) GetValue(_ context.Context, key string) (string, error) {
+	return s.values[key], nil
+}
+func (s *warmupSettingStub) Set(_ context.Context, key, _ string) error {
+	s.setCalls = append(s.setCalls, key)
+	return s.setErr
+}
+func (s *warmupSettingStub) GetMultiple(_ context.Context, keys []string) (map[string]string, error) {
+	out := make(map[string]string, len(keys))
+	for _, k := range keys {
+		out[k] = s.values[k]
+	}
+	return out, nil
+}
+func (s *warmupSettingStub) SetMultiple(_ context.Context, _ map[string]string) error {
+	panic("unexpected: SetMultiple")
+}
+func (s *warmupSettingStub) GetAll(_ context.Context) (map[string]string, error) {
+	panic("unexpected: GetAll")
+}
+func (s *warmupSettingStub) Delete(_ context.Context, _ string) error {
+	panic("unexpected: Delete")
+}
+
+var _ SettingRepository = (*warmupSettingStub)(nil)
+
+// warmupAccountStub is a minimal AccountRepository stub that delegates only
+// ListSchedulableByPlatforms; all other methods panic.
+type warmupAccountStub struct {
+	listResult []Account
+	listErr    error
+}
+
+func (s *warmupAccountStub) ListSchedulableByPlatforms(_ context.Context, _ []string) ([]Account, error) {
+	return s.listResult, s.listErr
+}
+
+// -- all unused methods panic --
+
+func (s *warmupAccountStub) Create(context.Context, *Account) error                    { panic("unexpected") }
+func (s *warmupAccountStub) GetByID(context.Context, int64) (*Account, error)          { panic("unexpected") }
+func (s *warmupAccountStub) GetByIDs(context.Context, []int64) ([]*Account, error)     { panic("unexpected") }
+func (s *warmupAccountStub) ExistsByID(context.Context, int64) (bool, error)           { panic("unexpected") }
+func (s *warmupAccountStub) GetByCRSAccountID(context.Context, string) (*Account, error) {
+	panic("unexpected")
+}
+func (s *warmupAccountStub) FindByExtraField(context.Context, string, any) ([]Account, error) {
+	panic("unexpected")
+}
+func (s *warmupAccountStub) ListCRSAccountIDs(context.Context) (map[string]int64, error) {
+	panic("unexpected")
+}
+func (s *warmupAccountStub) Update(context.Context, *Account) error        { panic("unexpected") }
+func (s *warmupAccountStub) Delete(context.Context, int64) error           { panic("unexpected") }
+func (s *warmupAccountStub) List(context.Context, pagination.PaginationParams) ([]Account, *pagination.PaginationResult, error) {
+	panic("unexpected")
+}
+func (s *warmupAccountStub) ListWithFilters(context.Context, pagination.PaginationParams, string, string, string, string, int64, string) ([]Account, *pagination.PaginationResult, error) {
+	panic("unexpected")
+}
+func (s *warmupAccountStub) ListByGroup(context.Context, int64) ([]Account, error) { panic("unexpected") }
+func (s *warmupAccountStub) ListActive(context.Context) ([]Account, error)          { panic("unexpected") }
+func (s *warmupAccountStub) ListByPlatform(context.Context, string) ([]Account, error) {
+	panic("unexpected")
+}
+func (s *warmupAccountStub) UpdateLastUsed(context.Context, int64) error { panic("unexpected") }
+func (s *warmupAccountStub) BatchUpdateLastUsed(context.Context, map[int64]time.Time) error {
+	panic("unexpected")
+}
+func (s *warmupAccountStub) SetError(context.Context, int64, string) error { panic("unexpected") }
+func (s *warmupAccountStub) ClearError(context.Context, int64) error       { panic("unexpected") }
+func (s *warmupAccountStub) SetSchedulable(context.Context, int64, bool) error {
+	panic("unexpected")
+}
+func (s *warmupAccountStub) AutoPauseExpiredAccounts(context.Context, time.Time) (int64, error) {
+	panic("unexpected")
+}
+func (s *warmupAccountStub) BindGroups(context.Context, int64, []int64) error { panic("unexpected") }
+func (s *warmupAccountStub) ListSchedulable(context.Context) ([]Account, error) {
+	panic("unexpected")
+}
+func (s *warmupAccountStub) ListSchedulableByGroupID(context.Context, int64) ([]Account, error) {
+	panic("unexpected")
+}
+func (s *warmupAccountStub) ListSchedulableByPlatform(context.Context, string) ([]Account, error) {
+	panic("unexpected")
+}
+func (s *warmupAccountStub) ListSchedulableByGroupIDAndPlatform(context.Context, int64, string) ([]Account, error) {
+	panic("unexpected")
+}
+func (s *warmupAccountStub) ListSchedulableByGroupIDAndPlatforms(context.Context, int64, []string) ([]Account, error) {
+	panic("unexpected")
+}
+func (s *warmupAccountStub) ListSchedulableUngroupedByPlatform(context.Context, string) ([]Account, error) {
+	panic("unexpected")
+}
+func (s *warmupAccountStub) ListSchedulableUngroupedByPlatforms(context.Context, []string) ([]Account, error) {
+	panic("unexpected")
+}
+func (s *warmupAccountStub) ListExpiredRateLimitedAccounts(context.Context) ([]Account, error) {
+	panic("unexpected")
+}
+func (s *warmupAccountStub) SetRateLimited(context.Context, int64, time.Time) error {
+	panic("unexpected")
+}
+func (s *warmupAccountStub) SetModelRateLimit(context.Context, int64, string, time.Time) error {
+	panic("unexpected")
+}
+func (s *warmupAccountStub) SetOverloaded(context.Context, int64, time.Time) error {
+	panic("unexpected")
+}
+func (s *warmupAccountStub) SetTempUnschedulable(context.Context, int64, time.Time, string) error {
+	panic("unexpected")
+}
+func (s *warmupAccountStub) ClearTempUnschedulable(context.Context, int64) error {
+	panic("unexpected")
+}
+func (s *warmupAccountStub) ClearRateLimit(context.Context, int64) error             { panic("unexpected") }
+func (s *warmupAccountStub) ClearAntigravityQuotaScopes(context.Context, int64) error { panic("unexpected") }
+func (s *warmupAccountStub) ClearModelRateLimits(context.Context, int64) error       { panic("unexpected") }
+func (s *warmupAccountStub) UpdateSessionWindow(context.Context, int64, *time.Time, *time.Time, string) error {
+	panic("unexpected")
+}
+func (s *warmupAccountStub) UpdateExtra(context.Context, int64, map[string]any) error { panic("unexpected") }
+func (s *warmupAccountStub) BulkUpdate(context.Context, []int64, AccountBulkUpdate) (int64, error) {
+	panic("unexpected")
+}
+func (s *warmupAccountStub) IncrementQuotaUsed(context.Context, int64, float64) error { panic("unexpected") }
+func (s *warmupAccountStub) ResetQuotaUsed(context.Context, int64) error               { panic("unexpected") }
+
+var _ AccountRepository = (*warmupAccountStub)(nil)
+
+// baseWarmupSettings returns a map with all warmup settings that loadConfig reads,
+// pre-filled with sensible defaults for testing.
+func baseWarmupSettings(today string) map[string]string {
+	return map[string]string{
+		SettingKeyScheduledWarmupEnabled:       "true",
+		SettingKeyScheduledWarmupCron:          accountWarmupDefaultCron,
+		SettingKeyScheduledWarmupWorkdayOnly:   "false", // simplify: skip workday check
+		SettingKeyScheduledWarmupHolidays:      "[]",
+		SettingKeyScheduledWarmupExtraWorkdays: "[]",
+		SettingKeyScheduledWarmupPlatforms:     `["anthropic"]`,
+		SettingKeyScheduledWarmupLastRunDate:   "", // not run yet
+	}
+}
+
+// newWarmupServiceForTest builds an AccountWarmupService wired to the given stubs.
+// redisClient is nil so tryAcquireLeaderLock skips the actual lock.
+func newWarmupServiceForTest(settingRepo SettingRepository, accountRepo AccountRepository) *AccountWarmupService {
+	svc := &AccountWarmupService{
+		settingRepo:       settingRepo,
+		accountRepo:       accountRepo,
+		accountTestSvc:    &AccountTestService{}, // non-nil guard; RunTestBackground never called
+		feishuSvc:         nil,
+		redisClient:       nil, // no Redis → tryAcquireLeaderLock returns (nil, true) after warning
+		distributedLockOn: true,
+		instanceID:        "test-instance",
+		loc:               time.UTC,
+	}
+	svc.stopCtx, svc.stop = context.WithCancel(context.Background())
+	return svc
+}
+
+// TestRunNow_RejectsWhenAlreadyRanUnderLock verifies that RunNow(force=false) re-checks
+// last_run_date under the lock and rejects a second concurrent call even when the first
+// call's cfg snapshot showed an empty date.
+func TestRunNow_RejectsWhenAlreadyRanUnderLock(t *testing.T) {
+	today := time.Now().In(time.UTC).Format("2006-01-02")
+
+	values := baseWarmupSettings(today)
+	// First loadConfig sees empty lastRunDate (first check passes).
+	// GetValue (called inside lock) returns today — simulating another call having just
+	// written the idempotency key.
+	var getValueCallCount atomic.Int32
+	stub := &warmupSettingStub{values: values}
+
+	// Override GetValue to return today on the second call (the one inside the lock).
+	// We can't partially override so we use a wrapper.
+	wrappedStub := &getValueOverrideStub{
+		warmupSettingStub: stub,
+		overrideKey:       SettingKeyScheduledWarmupLastRunDate,
+		overrideValue:     today,
+		callCount:         &getValueCallCount,
+	}
+
+	svc := newWarmupServiceForTest(wrappedStub, &warmupAccountStub{})
+	_, err := svc.RunNow(context.Background(), false)
+	if err == nil {
+		t.Fatal("expected error from lock-internal idempotency check, got nil")
+	}
+	if !strings.Contains(err.Error(), "already executed today") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+// getValueOverrideStub wraps warmupSettingStub and overrides GetValue for a specific key.
+type getValueOverrideStub struct {
+	*warmupSettingStub
+	overrideKey   string
+	overrideValue string
+	callCount     *atomic.Int32
+}
+
+func (s *getValueOverrideStub) GetValue(_ context.Context, key string) (string, error) {
+	if key == s.overrideKey {
+		s.callCount.Add(1)
+		return s.overrideValue, nil
+	}
+	return s.warmupSettingStub.values[key], nil
+}
+
+// TestExecuteAndReport_SkipsIdempotencyWriteOnListError verifies that when
+// ListSchedulableByPlatforms returns an error, last_run_date is NOT written.
+func TestExecuteAndReport_SkipsIdempotencyWriteOnListError(t *testing.T) {
+	today := time.Now().In(time.UTC).Format("2006-01-02")
+	settingStub := &warmupSettingStub{values: baseWarmupSettings(today)}
+	accountStub := &warmupAccountStub{listErr: errors.New("db timeout")}
+
+	svc := newWarmupServiceForTest(settingStub, accountStub)
+
+	cfg := &warmupConfig{
+		enabled:     true,
+		cronSpec:    accountWarmupDefaultCron,
+		workdayOnly: false,
+		platforms:   []string{"anthropic"},
+		lastRunDate: "",
+		calendar:    NewWorkdayCalendar(nil, nil),
+	}
+	summary := svc.executeAndReport(cfg, time.Now().In(time.UTC), "manual")
+
+	if summary.ListError == "" {
+		t.Fatal("expected ListError to be set")
+	}
+	for _, key := range settingStub.setCalls {
+		if key == SettingKeyScheduledWarmupLastRunDate {
+			t.Errorf("Set(%q) was called despite list error; idempotency key must NOT be written on list failure", key)
+		}
+	}
+}
+
+// TestExecuteAndReport_WritesIdempotencyWhenListSucceeds verifies that when account
+// listing succeeds (even with 0 accounts), last_run_date IS written.
+func TestExecuteAndReport_WritesIdempotencyWhenListSucceeds(t *testing.T) {
+	today := time.Now().In(time.UTC).Format("2006-01-02")
+	settingStub := &warmupSettingStub{values: baseWarmupSettings(today)}
+	accountStub := &warmupAccountStub{listResult: []Account{}} // empty list, no error
+
+	svc := newWarmupServiceForTest(settingStub, accountStub)
+
+	cfg := &warmupConfig{
+		enabled:     true,
+		cronSpec:    accountWarmupDefaultCron,
+		workdayOnly: false,
+		platforms:   []string{"anthropic"},
+		lastRunDate: "",
+		calendar:    NewWorkdayCalendar(nil, nil),
+	}
+	svc.executeAndReport(cfg, time.Now().In(time.UTC), "manual")
+
+	wrote := false
+	for _, key := range settingStub.setCalls {
+		if key == SettingKeyScheduledWarmupLastRunDate {
+			wrote = true
+		}
+	}
+	if !wrote {
+		t.Error("expected Set(SettingKeyScheduledWarmupLastRunDate) to be called when list succeeds with 0 accounts")
 	}
 }
 

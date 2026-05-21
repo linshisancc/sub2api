@@ -6878,7 +6878,7 @@ const warmupLastRunResult = ref<
 
 const parseDateLines = (raw: string): string[] =>
   raw
-    .split(/\r?\n/)
+    .split(/[\r\n,，;；]+/)
     .map((line) => line.trim())
     .filter((line) => line.length > 0);
 

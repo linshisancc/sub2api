@@ -20,7 +20,7 @@ const (
 	accountWarmupDefaultCron       = "0 8 * * *"
 	accountWarmupTickInterval      = 1 * time.Minute
 	accountWarmupLeaderLockKey     = "scheduled_warmup:leader"
-	accountWarmupLeaderLockTTL     = 5 * time.Minute
+	accountWarmupLeaderLockTTL     = 15 * time.Minute
 )
 
 var accountWarmupCronParser = cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
@@ -217,6 +217,15 @@ func (s *AccountWarmupService) RunNow(ctx context.Context, force bool) (*WarmupS
 		defer release()
 	}
 
+	// Re-check under the lock to guard against concurrent RunNow calls.
+	if !force {
+		if latest, err := s.settingRepo.GetValue(ctx, SettingKeyScheduledWarmupLastRunDate); err == nil {
+			if strings.TrimSpace(latest) == now.Format("2006-01-02") {
+				return nil, fmt.Errorf("already executed today: %s", strings.TrimSpace(latest))
+			}
+		}
+	}
+
 	return s.executeAndReport(cfg, now, "manual"), nil
 }
 
@@ -228,9 +237,12 @@ func (s *AccountWarmupService) executeAndReport(cfg *warmupConfig, now time.Time
 	summary.Source = source
 
 	// Persist last_run_date BEFORE sending the card so a slow webhook doesn't
-	// block the idempotency guarantee.
-	if err := s.settingRepo.Set(ctx, SettingKeyScheduledWarmupLastRunDate, now.Format("2006-01-02")); err != nil {
-		slog.Warn("scheduled_warmup: failed to persist last_run_date", "error", err)
+	// block the idempotency guarantee. Skip when account listing failed so
+	// the next cron tick can retry automatically.
+	if summary.ListError == "" {
+		if err := s.settingRepo.Set(ctx, SettingKeyScheduledWarmupLastRunDate, now.Format("2006-01-02")); err != nil {
+			slog.Warn("scheduled_warmup: failed to persist last_run_date", "error", err)
+		}
 	}
 
 	if s.feishuSvc != nil {
