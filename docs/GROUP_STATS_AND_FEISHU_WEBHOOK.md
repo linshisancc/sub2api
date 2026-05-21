@@ -251,6 +251,13 @@ ticker := time.NewTicker(2 * time.Minute)
 | 账号被限流 | 无邮件告警 | 推送到飞书群 |
 | 控制开关 | 各自独立 | 各自独立 |
 
+### 前端相关文件
+
+- **`SettingTabFeishu.vue`** — `frontend/src/views/admin/components/SettingTabFeishu.vue`  
+  设置页「飞书 Webhook」Tab 内容组件。
+- **`SettingsView.vue`** — `frontend/src/views/admin/SettingsView.vue`  
+  设置页主容器，引用上述组件。
+
 ---
 
 ## 监控告警推送飞书
@@ -438,3 +445,12 @@ func (c *WorkdayCalendar) IsWorkday(t time.Time) bool {
 | 每个账号自定义的"定时连通性测试" | `ScheduledTestRunnerService`（与 Warmup 共用同一条 `RunTestBackground` 路径，但调度与持久化完全独立） |
 
 Warmup 任务的 cron / 幂等键 / 分布式锁 key 与上述模块均不冲突，可安全并存。
+
+### 前端组件
+
+- **`SettingTabFeishu.vue`** — `frontend/src/views/admin/components/SettingTabFeishu.vue`  
+  系统设置页「飞书 Webhook」Tab 内容组件。独立管理 Webhook URL、冷却时间、@成员、推送告警类型开关等配置。
+- **`SettingTabWarmup.vue`** — `frontend/src/views/admin/components/SettingTabWarmup.vue`  
+  系统设置页「定时 Warmup」Tab 内容组件。独立管理 cron 表达式、工作日判定、参与平台复选框、节假日/补班日输入、手动触发及结果展示。
+- **`SettingsView.vue`** — `frontend/src/views/admin/SettingsView.vue`  
+  系统设置页主容器，含 11 个 Tab 的自定义导航栏及配置读写逻辑。飞书 Webhook 与定时 Warmup Tab 内容已拆分为上述两个独立组件。

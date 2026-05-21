@@ -6398,226 +6398,14 @@
         <!-- /Tab: Email -->
 
         <!-- Tab: Feishu -->
-        <div v-show="activeTab === 'feishu'" class="space-y-6">
-          <!-- 基础配置 -->
-          <div class="card">
-            <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
-              <h3 class="text-base font-medium text-gray-900 dark:text-white">飞书 Webhook 通知</h3>
-              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                通过飞书机器人 Webhook 推送告警消息，与邮件告警并行触发，互不影响。
-              </p>
-            </div>
-            <div class="px-6 py-6 space-y-4">
-              <div class="flex items-center justify-between">
-                <label class="mb-0 block text-sm font-medium text-gray-700 dark:text-gray-300">启用飞书 Webhook</label>
-                <Toggle v-model="form.feishu_webhook_enabled" />
-              </div>
-              <div v-if="form.feishu_webhook_enabled" class="space-y-4">
-                <div>
-                  <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Webhook URL</label>
-                  <input
-                    v-model="form.feishu_webhook_url"
-                    type="url"
-                    class="input"
-                    placeholder="https://open.feishu.cn/open-apis/bot/v2/hook/..."
-                  />
-                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    在飞书群聊「设置 → 机器人 → 添加自定义机器人」获取 Webhook URL。
-                  </p>
-                </div>
-                <div>
-                  <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">冷却时间（分钟）</label>
-                  <input
-                    v-model.number="form.feishu_webhook_cooldown_minutes"
-                    type="number"
-                    min="1"
-                    max="1440"
-                    class="input w-32"
-                    placeholder="30"
-                  />
-                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">同类告警触发后，冷却期内不重复推送，默认 30 分钟，最大 1440 分钟（24 小时）。</p>
-                </div>
-                <div class="flex items-center justify-between">
-                  <div>
-                    <p class="text-sm font-medium text-gray-700 dark:text-gray-300">@所有人</p>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">推送告警卡片时 @所有人。</p>
-                  </div>
-                  <Toggle v-model="form.feishu_webhook_at_all" />
-                </div>
-                <div>
-                  <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">@指定成员</label>
-                  <textarea
-                    v-model="form.feishu_webhook_at_user_ids"
-                    rows="3"
-                    class="input"
-                    placeholder="ou_xxxxxxxxxxxxxxxx&#10;ou_yyyyyyyyyyyyyyyy"
-                  ></textarea>
-                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">推送时 @ 指定成员，填写飞书 open_id，每行一个（也支持逗号 / 分号分隔）。</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- 推送告警类型 -->
-          <div v-if="form.feishu_webhook_enabled" class="card">
-            <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
-              <h3 class="text-base font-medium text-gray-900 dark:text-white">推送告警类型</h3>
-              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                选择需要推送到飞书群的告警类型，各类告警独立冷却。
-              </p>
-            </div>
-            <div class="px-6 py-6 space-y-4">
-              <div class="flex items-center justify-between">
-                <div>
-                  <p class="text-sm font-medium text-gray-700 dark:text-gray-300">用户余额不足</p>
-                  <p class="text-xs text-gray-500 dark:text-gray-400">用户余额低于告警阈值时触发，需在「邮件设置」中启用余额低通知。</p>
-                </div>
-                <Toggle v-model="form.feishu_webhook_notify_balance" />
-              </div>
-              <div class="flex items-center justify-between">
-                <div>
-                  <p class="text-sm font-medium text-gray-700 dark:text-gray-300">账号额度超限</p>
-                  <p class="text-xs text-gray-500 dark:text-gray-400">账号日 / 周 / 总额度触达告警阈值时触发，需在「邮件设置」中启用账号配额通知。</p>
-                </div>
-                <Toggle v-model="form.feishu_webhook_notify_account" />
-              </div>
-              <div class="flex items-center justify-between">
-                <div>
-                  <p class="text-sm font-medium text-gray-700 dark:text-gray-300">监控告警</p>
-                  <p class="text-xs text-gray-500 dark:text-gray-400">监控页告警策略命中阈值时推送，复用监控模块自身的静默 / 去重机制；需先在监控页配置告警策略。</p>
-                </div>
-                <Toggle v-model="form.feishu_webhook_notify_ops" />
-              </div>
-              <div class="flex items-center justify-between">
-                <div>
-                  <p class="text-sm font-medium text-gray-700 dark:text-gray-300">账号 Warmup 汇总</p>
-                  <p class="text-xs text-gray-500 dark:text-gray-400">每日定时账号 Warmup 任务执行完成后推送一张汇总卡片（成功 / 失败 / 跳过）。配置入口在「定时 Warmup」Tab。</p>
-                </div>
-                <Toggle v-model="form.feishu_webhook_notify_warmup" />
-              </div>
-            </div>
-          </div>
+        <div v-show="activeTab === 'feishu'">
+          <SettingTabFeishu :form="form" />
         </div>
-        <!-- /Tab: Feishu -->
 
         <!-- Tab: 定时账号 Warmup -->
-        <div v-show="activeTab === 'warmup'" class="space-y-6">
-          <div class="card">
-            <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
-              <h3 class="text-base font-medium text-gray-900 dark:text-white">定时账号 Warmup</h3>
-              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                每日早上自动对所有可调度账号发起一次极小请求，触发上游 5h 限流窗口起点对齐到工作开始时刻，确保白天能用满 2 个完整的 5h 窗口。
-              </p>
-            </div>
-            <div class="px-6 py-6 space-y-4">
-              <div class="flex items-center justify-between">
-                <label class="mb-0 block text-sm font-medium text-gray-700 dark:text-gray-300">启用</label>
-                <Toggle v-model="form.scheduled_warmup_enabled" />
-              </div>
-              <div v-if="form.scheduled_warmup_enabled" class="space-y-4">
-                <div>
-                  <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">触发时间（5 段 cron）</label>
-                  <input
-                    v-model="form.scheduled_warmup_cron"
-                    type="text"
-                    class="input w-64"
-                    placeholder="0 8 * * *"
-                  />
-                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">默认 <code>0 8 * * *</code>（每天 08:00）。时区跟随服务部署时区，工作日判定见下方设置。</p>
-                </div>
-                <div class="flex items-center justify-between">
-                  <div>
-                    <p class="text-sm font-medium text-gray-700 dark:text-gray-300">仅工作日触发</p>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">默认开启。周末不触发，但下面的"补班日"会覆盖周末；节假日则会跳过。</p>
-                  </div>
-                  <Toggle v-model="form.scheduled_warmup_workday_only" />
-                </div>
-                <div>
-                  <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">参与平台</label>
-                  <div class="flex flex-wrap gap-3">
-                    <label
-                      v-for="p in warmupPlatformOptions"
-                      :key="p"
-                      class="inline-flex items-center gap-2 rounded-md border border-gray-200 px-3 py-1.5 text-sm dark:border-dark-700"
-                    >
-                      <input
-                        type="checkbox"
-                        :checked="form.scheduled_warmup_platforms?.includes(p)"
-                        @change="toggleWarmupPlatform(p)"
-                      />
-                      <span>{{ p }}</span>
-                    </label>
-                  </div>
-                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">未勾选的平台不会被 Warmup。</p>
-                </div>
-                <div>
-                  <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">节假日（每行一个 YYYY-MM-DD）</label>
-                  <textarea
-                    :value="(form.scheduled_warmup_holidays || []).join('\n')"
-                    rows="4"
-                    class="input"
-                    placeholder="2026-05-01&#10;2026-05-02&#10;2026-05-03"
-                    @input="onWarmupHolidaysInput($event)"
-                  ></textarea>
-                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">这些日期即使是工作日也会跳过 Warmup。</p>
-                </div>
-                <div>
-                  <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">补班日（每行一个 YYYY-MM-DD）</label>
-                  <textarea
-                    :value="(form.scheduled_warmup_extra_workdays || []).join('\n')"
-                    rows="4"
-                    class="input"
-                    placeholder="2026-04-26&#10;2026-05-09"
-                    @input="onWarmupExtraWorkdaysInput($event)"
-                  ></textarea>
-                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">这些日期即使是周末也会触发 Warmup（覆盖节假日）。国务院节假日公告发布后手动维护即可。</p>
-                </div>
-                <div class="border-t border-gray-100 pt-4 dark:border-dark-700">
-                  <div class="flex items-center justify-between">
-                    <div>
-                      <p class="text-sm font-medium text-gray-700 dark:text-gray-300">立即触发一次</p>
-                      <p class="text-xs text-gray-500 dark:text-gray-400">用于联调或手动补救。当天若已运行过会拒绝，可勾选"强制"绕过。</p>
-                    </div>
-                    <div class="flex items-center gap-3">
-                      <label class="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-                        <input type="checkbox" v-model="warmupRunForce" />
-                        强制
-                      </label>
-                      <button
-                        type="button"
-                        class="btn-secondary"
-                        :disabled="warmupRunLoading"
-                        @click="onWarmupRunNow"
-                      >
-                        {{ warmupRunLoading ? "执行中…" : "立即触发" }}
-                      </button>
-                    </div>
-                  </div>
-                  <div v-if="warmupLastRunResult" class="mt-4 rounded-md border border-gray-200 bg-gray-50 p-3 text-xs text-gray-700 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-300">
-                    <p>
-                      执行于
-                      <code>{{ warmupLastRunResult.executed_at }}</code> · 来源
-                      <code>{{ warmupLastRunResult.source }}</code> · 共
-                      {{ warmupLastRunResult.total }} 个账号 · 成功
-                      <span class="font-semibold text-emerald-600">{{ warmupLastRunResult.success }}</span> · 失败
-                      <span class="font-semibold" :class="warmupLastRunResult.failed > 0 ? 'text-red-600' : 'text-gray-500'">{{ warmupLastRunResult.failed }}</span> · 耗时
-                      {{ warmupLastRunResult.duration_ms }} ms
-                    </p>
-                    <ul
-                      v-if="warmupLastRunResult.failures && warmupLastRunResult.failures.length > 0"
-                      class="mt-2 list-disc space-y-1 pl-5"
-                    >
-                      <li v-for="(f, i) in warmupLastRunResult.failures" :key="i">
-                        {{ f.Name }} ({{ f.Platform }}) — {{ f.Error }}
-                      </li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+        <div v-show="activeTab === 'warmup'">
+          <SettingTabWarmup :form="form" />
         </div>
-        <!-- /Tab: Warmup -->
 
         <!-- Tab: Backup -->
         <div v-show="activeTab === 'backup'">
@@ -6738,6 +6526,8 @@ import Toggle from "@/components/common/Toggle.vue";
 import ProxySelector from "@/components/common/ProxySelector.vue";
 import ImageUpload from "@/components/common/ImageUpload.vue";
 import BackupSettings from "@/views/admin/BackupView.vue";
+import SettingTabFeishu from "@/views/admin/components/SettingTabFeishu.vue";
+import SettingTabWarmup from "@/views/admin/components/SettingTabWarmup.vue";
 import EmailTemplateEditor from "@/views/admin/settings/EmailTemplateEditor.vue";
 import { useClipboard } from "@/composables/useClipboard";
 import { affiliatesAPI, type AffiliateAdminEntry, type SimpleUser as AffiliateSimpleUser } from "@/api/admin/affiliates";
@@ -6862,58 +6652,6 @@ const testEmailAddress = ref("");
 const registrationEmailSuffixWhitelistTags = ref<string[]>([]);
 const registrationEmailSuffixWhitelistDraft = ref("");
 const tablePageSizeOptionsInput = ref("10, 20, 50, 100");
-
-// Scheduled Warmup state
-const warmupPlatformOptions = [
-  "anthropic",
-  "openai",
-  "gemini",
-  "antigravity",
-];
-const warmupRunForce = ref(false);
-const warmupRunLoading = ref(false);
-const warmupLastRunResult = ref<
-  import("@/api/admin/settings").ScheduledWarmupRunResult | null
->(null);
-
-const parseDateLines = (raw: string): string[] =>
-  raw
-    .split(/[\r\n,，;；]+/)
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0);
-
-const toggleWarmupPlatform = (platform: string) => {
-  const list = form.scheduled_warmup_platforms || [];
-  const idx = list.indexOf(platform);
-  if (idx >= 0) {
-    list.splice(idx, 1);
-  } else {
-    list.push(platform);
-  }
-  form.scheduled_warmup_platforms = [...list];
-};
-
-const onWarmupHolidaysInput = (event: Event) => {
-  const target = event.target as HTMLTextAreaElement;
-  form.scheduled_warmup_holidays = parseDateLines(target.value);
-};
-
-const onWarmupExtraWorkdaysInput = (event: Event) => {
-  const target = event.target as HTMLTextAreaElement;
-  form.scheduled_warmup_extra_workdays = parseDateLines(target.value);
-};
-
-const onWarmupRunNow = async () => {
-  warmupRunLoading.value = true;
-  try {
-    warmupLastRunResult.value =
-      await adminAPI.settings.runScheduledWarmupNow(warmupRunForce.value);
-  } catch (err: unknown) {
-    appStore.showError(extractApiErrorMessage(err, "执行失败"));
-  } finally {
-    warmupRunLoading.value = false;
-  }
-};
 
 // Admin API Key 状态
 const adminApiKeyLoading = ref(true);
@@ -9763,12 +9501,6 @@ watch(
 
 .settings-tabs-scroll {
   @apply overflow-x-auto;
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-
-.settings-tabs-scroll::-webkit-scrollbar {
-  display: none;
 }
 
 .settings-tabs {
@@ -9777,20 +9509,6 @@ watch(
 
 .settings-tab {
   @apply relative isolate flex h-10 min-w-[6.75rem] shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border border-transparent px-3 text-sm font-medium text-gray-600 outline-none transition-colors duration-200 ease-out dark:text-gray-300;
-}
-
-@media (min-width: 768px) {
-  .settings-tabs {
-    @apply min-w-full;
-  }
-
-  .settings-tab {
-    @apply min-w-0 flex-1 basis-0 overflow-hidden px-2 text-[13px];
-  }
-
-  .settings-tab-icon {
-    @apply h-6 w-6;
-  }
 }
 
 .settings-tab::before {

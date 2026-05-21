@@ -16,6 +16,7 @@
 - `backend/internal/handler/admin/setting_handler.go`
 - `backend/internal/repository/account_repo.go`
 - `frontend/src/views/admin/SettingsView.vue`
+- `frontend/src/views/admin/components/SettingTabWarmup.vue`
 - `frontend/src/api/admin/settings.ts`
 
 相关测试：
