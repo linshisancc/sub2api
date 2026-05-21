@@ -326,6 +326,16 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 			selection, err := h.gatewayService.SelectAccountWithLoadAwareness(c.Request.Context(), apiKey.GroupID, sessionKey, reqModel, fs.FailedAccountIDs, "", int64(0)) // Gemini 不使用会话限制
 			if err != nil {
 				if len(fs.FailedAccountIDs) == 0 {
+					if errors.Is(err, service.ErrModelRestrictedByChannel) {
+						reqLog.Warn("gateway.model_restricted_by_channel",
+							zap.String("model", reqModel),
+							zap.Int64p("group_id", apiKey.GroupID),
+							zap.String("platform", platform),
+							zap.Error(err),
+						)
+						h.handleStreamingAwareError(c, http.StatusNotFound, "not_found_error", "Model not allowed by channel: "+reqModel, streamStarted)
+						return
+					}
 					markOpsRoutingCapacityLimitedIfNoAvailable(c, err)
 					reqLog.Warn("gateway.select_account_no_available",
 						zap.String("model", reqModel),
@@ -569,6 +579,17 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 			selection, err := h.gatewayService.SelectAccountWithLoadAwareness(c.Request.Context(), currentAPIKey.GroupID, sessionKey, reqModel, fs.FailedAccountIDs, parsedReq.MetadataUserID, subject.UserID)
 			if err != nil {
 				if len(fs.FailedAccountIDs) == 0 {
+					if errors.Is(err, service.ErrModelRestrictedByChannel) {
+						reqLog.Warn("gateway.model_restricted_by_channel",
+							zap.String("model", reqModel),
+							zap.Int64p("group_id", currentAPIKey.GroupID),
+							zap.String("platform", platform),
+							zap.Bool("fallback_used", fallbackUsed),
+							zap.Error(err),
+						)
+						h.handleStreamingAwareError(c, http.StatusNotFound, "not_found_error", "Model not allowed by channel: "+reqModel, streamStarted)
+						return
+					}
 					markOpsRoutingCapacityLimitedIfNoAvailable(c, err)
 					reqLog.Warn("gateway.select_account_no_available",
 						zap.String("model", reqModel),
