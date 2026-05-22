@@ -231,7 +231,11 @@ func (s *OpsAlertEvaluatorService) evaluateOnce(interval time.Duration) {
 			s.resetRuleState(rule.ID, now)
 			// No data in window: not a breach, but still resolve any active firing event so it
 			// doesn't stay stuck forever when traffic drops to zero after a rate-limit clears.
-			if ae, aeErr := s.opsRepo.GetActiveAlertEvent(ctx, rule.ID); aeErr == nil && ae != nil {
+			ae, aeErr := s.opsRepo.GetActiveAlertEvent(ctx, rule.ID)
+			if aeErr != nil {
+				logger.LegacyPrintf("service.ops_alert_evaluator", "[OpsAlertEvaluator] get active event failed in no-data path (rule=%d): %v", rule.ID, aeErr)
+			}
+			if aeErr == nil && ae != nil {
 				resolvedAt := now
 				if err := s.opsRepo.UpdateAlertEventStatus(ctx, ae.ID, OpsAlertStatusResolved, &resolvedAt); err == nil {
 					eventsResolved++
@@ -583,14 +587,23 @@ func (s *OpsAlertEvaluatorService) computeRuleMetric(
 		if overview.RequestCountSLA <= 0 {
 			return 0, false
 		}
+		if rule.MinRequests > 0 && overview.RequestCountSLA < int64(rule.MinRequests) {
+			return 0, false
+		}
 		return overview.SLA * 100, true
 	case "error_rate":
 		if overview.RequestCountSLA <= 0 {
 			return 0, false
 		}
+		if rule.MinRequests > 0 && overview.RequestCountSLA < int64(rule.MinRequests) {
+			return 0, false
+		}
 		return overview.ErrorRate * 100, true
 	case "upstream_error_rate":
 		if overview.RequestCountSLA <= 0 {
+			return 0, false
+		}
+		if rule.MinRequests > 0 && overview.RequestCountSLA < int64(rule.MinRequests) {
 			return 0, false
 		}
 		return overview.UpstreamErrorRate * 100, true
@@ -754,6 +767,7 @@ func (s *OpsAlertEvaluatorService) maybeSendAlertFeishu(ctx context.Context, run
 // toggle (checked inside SendOpsAlertResolved) and the shared silencing rules.
 func (s *OpsAlertEvaluatorService) maybeSendAlertResolvedFeishu(ctx context.Context, runtimeCfg *OpsAlertRuntimeSettings, rule *OpsAlertRule, event *OpsAlertEvent, resolvedAt time.Time) {
 	if s == nil || s.feishuWebhook == nil || event == nil || rule == nil {
+		logger.LegacyPrintf("service.ops_alert_evaluator", "[OpsAlertEvaluator] feishu resolved skipped: nil dependency")
 		return
 	}
 

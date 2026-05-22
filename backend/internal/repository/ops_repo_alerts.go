@@ -29,6 +29,7 @@ SELECT
   window_minutes,
   sustained_minutes,
   cooldown_minutes,
+  min_requests,
   COALESCE(notify_email, true),
   filters,
   last_triggered_at,
@@ -60,6 +61,7 @@ ORDER BY id DESC`
 			&rule.WindowMinutes,
 			&rule.SustainedMinutes,
 			&rule.CooldownMinutes,
+			&rule.MinRequests,
 			&rule.NotifyEmail,
 			&filtersRaw,
 			&lastTriggeredAt,
@@ -111,12 +113,13 @@ INSERT INTO ops_alert_rules (
   window_minutes,
   sustained_minutes,
   cooldown_minutes,
+  min_requests,
   notify_email,
   filters,
   created_at,
   updated_at
 ) VALUES (
-  $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NOW(),NOW()
+  $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,NOW(),NOW()
 )
 RETURNING
   id,
@@ -130,6 +133,7 @@ RETURNING
   window_minutes,
   sustained_minutes,
   cooldown_minutes,
+  min_requests,
   COALESCE(notify_email, true),
   filters,
   last_triggered_at,
@@ -153,6 +157,7 @@ RETURNING
 		input.WindowMinutes,
 		input.SustainedMinutes,
 		input.CooldownMinutes,
+		input.MinRequests,
 		input.NotifyEmail,
 		filtersArg,
 	).Scan(
@@ -167,6 +172,7 @@ RETURNING
 		&out.WindowMinutes,
 		&out.SustainedMinutes,
 		&out.CooldownMinutes,
+		&out.MinRequests,
 		&out.NotifyEmail,
 		&filtersRaw,
 		&lastTriggeredAt,
@@ -218,8 +224,9 @@ SET
   window_minutes = $9,
   sustained_minutes = $10,
   cooldown_minutes = $11,
-  notify_email = $12,
-  filters = $13,
+  min_requests = $12,
+  notify_email = $13,
+  filters = $14,
   updated_at = NOW()
 WHERE id = $1
 RETURNING
@@ -234,6 +241,7 @@ RETURNING
   window_minutes,
   sustained_minutes,
   cooldown_minutes,
+  min_requests,
   COALESCE(notify_email, true),
   filters,
   last_triggered_at,
@@ -258,6 +266,7 @@ RETURNING
 		input.WindowMinutes,
 		input.SustainedMinutes,
 		input.CooldownMinutes,
+		input.MinRequests,
 		input.NotifyEmail,
 		filtersArg,
 	).Scan(
@@ -272,6 +281,7 @@ RETURNING
 		&out.WindowMinutes,
 		&out.SustainedMinutes,
 		&out.CooldownMinutes,
+		&out.MinRequests,
 		&out.NotifyEmail,
 		&filtersRaw,
 		&lastTriggeredAt,

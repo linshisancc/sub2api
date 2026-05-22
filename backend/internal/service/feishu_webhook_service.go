@@ -5,7 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
+	"math/rand"
 	"net/http"
 	"strconv"
 	"strings"
@@ -482,31 +484,80 @@ func buildFeishuAtString(openIDs []string, atAll bool) string {
 	return strings.Join(parts, " ")
 }
 
+const (
+	feishuPostCardMaxRetries     = 3
+	feishuPostCardRetryBaseDelay = 1 * time.Second
+	feishuPostCardRetryMaxDelay  = 8 * time.Second
+)
+
+type feishuErrorResponse struct {
+	Code int64  `json:"code"`
+	Msg  string `json:"msg"`
+}
+
 func (s *FeishuWebhookService) postCard(webhookURL string, msg feishuCardMessage) error {
 	body, err := json.Marshal(msg)
 	if err != nil {
 		return fmt.Errorf("marshal message: %w", err)
 	}
 
-	client, err := httppool.GetClient(httppool.Options{Timeout: feishuWebhookTimeout})
-	if err != nil {
-		return fmt.Errorf("get http client: %w", err)
+	var lastErr error
+	for attempt := 0; attempt < feishuPostCardMaxRetries; attempt++ {
+		if attempt > 0 {
+			delay := feishuPostCardRetryBaseDelay * time.Duration(1<<uint(attempt-1))
+			if delay > feishuPostCardRetryMaxDelay {
+				delay = feishuPostCardRetryMaxDelay
+			}
+			jitter := time.Duration(rand.Int63n(int64(delay) / 5))
+			sleepFor := delay + jitter
+			slog.Warn("feishu_webhook: postCard retry", "attempt", attempt+1, "max", feishuPostCardMaxRetries, "after", sleepFor)
+			time.Sleep(sleepFor)
+		}
+
+		client, err := httppool.GetClient(httppool.Options{Timeout: feishuWebhookTimeout})
+		if err != nil {
+			lastErr = fmt.Errorf("get http client: %w", err)
+			continue
+		}
+
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, webhookURL, bytes.NewReader(body))
+		if err != nil {
+			lastErr = fmt.Errorf("create request: %w", err)
+			continue
+		}
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := client.Do(req)
+		if err != nil {
+			lastErr = fmt.Errorf("do request: %w", err)
+			continue
+		}
+
+		respBody, readErr := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		resp.Body.Close()
+		if readErr != nil {
+			lastErr = fmt.Errorf("read response: %w", readErr)
+			continue
+		}
+
+		if resp.StatusCode >= 400 {
+			snippet := string(respBody)
+			if len(snippet) > 200 {
+				snippet = snippet[:200]
+			}
+			lastErr = fmt.Errorf("feishu webhook returned status %d: %s", resp.StatusCode, snippet)
+			continue
+		}
+
+		var feishuErr feishuErrorResponse
+		if json.Unmarshal(respBody, &feishuErr) == nil && feishuErr.Code != 0 {
+			lastErr = fmt.Errorf("feishu business error: code=%d msg=%s", feishuErr.Code, feishuErr.Msg)
+			slog.Warn("feishu_webhook: postCard feishu error", "code", feishuErr.Code, "msg", feishuErr.Msg)
+			continue
+		}
+
+		return nil
 	}
 
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, webhookURL, bytes.NewReader(body))
-	if err != nil {
-		return fmt.Errorf("create request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return fmt.Errorf("do request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode >= 400 {
-		return fmt.Errorf("feishu webhook returned status %d", resp.StatusCode)
-	}
-	return nil
+	return lastErr
 }

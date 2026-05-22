@@ -700,6 +700,7 @@ export interface AlertRule {
   sustained_minutes: number
   severity: OpsSeverity
   cooldown_minutes: number
+  min_requests: number
   notify_email: boolean
   filters?: Record<string, any>
   created_at?: string

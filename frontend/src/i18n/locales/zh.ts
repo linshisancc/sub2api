@@ -5064,7 +5064,8 @@ export default {
         hints: {
           recommended: '推荐：运算符 {operator}，阈值 {threshold}{unit}',
           groupRequired: '该指标为分组级别指标，必须选择分组（group_id）。',
-          groupOptional: '可选：通过 group_id 将规则限定到某个分组。'
+          groupOptional: '可选：通过 group_id 将规则限定到某个分组。',
+          minRequests: '窗口内请求数低于此值时跳过评估（0=不限制），防止低流量误报'
         },
         table: {
           name: '名称',
@@ -5086,6 +5087,7 @@ export default {
           window: '统计窗口（分钟）',
           sustained: '连续样本数（每分钟）',
           cooldown: '冷却期（分钟）',
+          minRequests: '最小请求数',
           enabled: '启用',
           notifyEmail: '发送邮件通知'
         },

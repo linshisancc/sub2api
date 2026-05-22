@@ -28,6 +28,7 @@ type OpsAlertRule struct {
 	WindowMinutes    int `json:"window_minutes"`
 	SustainedMinutes int `json:"sustained_minutes"`
 	CooldownMinutes  int `json:"cooldown_minutes"`
+	MinRequests      int `json:"min_requests"`
 
 	NotifyEmail bool `json:"notify_email"`
 

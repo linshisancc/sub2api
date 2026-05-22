@@ -71,6 +71,8 @@ type opsAlertRuleValidatedInput struct {
 	WindowMinutes    int
 	SustainedMinutes int
 	CooldownMinutes  int
+	MinRequests       int
+	MinRequestsProvided bool
 
 	Enabled     bool
 	NotifyEmail bool
@@ -231,6 +233,16 @@ func validateOpsAlertRulePayload(raw map[string]json.RawMessage) (*opsAlertRuleV
 		validated.CooldownMinutes = 0
 	}
 
+	if v, ok := raw["min_requests"]; ok {
+		validated.MinRequestsProvided = true
+		if err := json.Unmarshal(v, &validated.MinRequests); err != nil {
+			return nil, fmt.Errorf("min_requests must be an integer")
+		}
+		if validated.MinRequests < 0 {
+			return nil, fmt.Errorf("min_requests must be >= 0")
+		}
+	}
+
 	return validated, nil
 }
 
@@ -290,6 +302,7 @@ func (h *OpsHandler) CreateAlertRule(c *gin.Context) {
 	rule.WindowMinutes = validated.WindowMinutes
 	rule.SustainedMinutes = validated.SustainedMinutes
 	rule.CooldownMinutes = validated.CooldownMinutes
+	rule.MinRequests = validated.MinRequests
 	rule.Severity = validated.Severity
 	rule.Enabled = validated.Enabled
 	rule.NotifyEmail = validated.NotifyEmail
@@ -345,6 +358,7 @@ func (h *OpsHandler) UpdateAlertRule(c *gin.Context) {
 	rule.WindowMinutes = validated.WindowMinutes
 	rule.SustainedMinutes = validated.SustainedMinutes
 	rule.CooldownMinutes = validated.CooldownMinutes
+	rule.MinRequests = validated.MinRequests
 	rule.Severity = validated.Severity
 	rule.Enabled = validated.Enabled
 	rule.NotifyEmail = validated.NotifyEmail

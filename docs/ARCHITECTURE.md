@@ -288,17 +288,28 @@ TotalCost  = Σ above"]
 
 ## 账号调度策略
 
+系统对 **Claude（Anthropic）** 和 **OpenAI（GPT）** 采用不同的调度算法，两者共享粘性会话机制，但新会话选号逻辑有本质差异。
+
+---
+
+### Claude 账号调度
+
 ```mermaid
 flowchart TD
-    REQ[收到请求] --> STICKY{Redis 粘性会话<br/>存在?}
-    STICKY -- 是 --> VALID{账号仍活跃?}
-    VALID -- 是 --> USE[使用缓存账号]
-    VALID -- 否 --> SELECT
+    REQ[收到请求] --> STICKY{Redis 粘性会话<br/>存在且有效?}
+    STICKY -- 是 --> VALID{账号通过<br/>全部调度检查?}
+    VALID -- 是 --> USE[复用粘性账号]
+    VALID -- 否 --> CLEAR[清除粘性会话]
+    CLEAR --> SELECT
     STICKY -- 否 --> SELECT
 
-    SELECT[查分组内活跃账号列表]
-    SELECT --> SORT[按 load_factor + current_concurrency 排序]
-    SORT --> PICK[选最低负载账号]
+    SELECT[查分组内可调度账号列表<br/>批量预取 windowCost & RPM]
+    SELECT --> FILTER{逐账号过滤}
+    FILTER -- 窗口费用超限 --> SKIP[跳过]
+    FILTER -- RPM 超限 --> SKIP
+    FILTER -- 不支持请求模型 --> SKIP
+    FILTER -- 通过 --> RANK[同优先级内按 LRU 排序<br/>选最久未使用账号]
+    RANK --> PICK[选中账号]
     PICK --> CACHE[写 sticky session TTL=1h]
     CACHE --> USE
 
@@ -306,10 +317,109 @@ flowchart TD
     FWD --> ERR{上游出错?}
     ERR -- 否 --> OK[返回响应]
     ERR -- 是 --> RETRY{已切换次数<br/>< 最大限制?}
-    RETRY -- 是 --> MARK[标记当前账号不可用]
-    MARK --> SELECT
+    RETRY -- 是 --> EXCL[加入 excludedIDs]
+    EXCL --> SELECT
     RETRY -- 否 --> FAIL[返回错误给客户端]
 ```
+
+**Claude 选号优先级规则（同分组、同平台）**
+
+新会话（无粘性）选号时，依次比较：
+
+1. **账号优先级**（`account.priority`）：数值越小越优先，优先级低的账号永远排在后面
+2. **LRU（最久未使用）**：同优先级内，选 `last_used_at` 最早的账号
+   - 从未使用过（`last_used_at = nil`）视为最优先
+   - 两个都未使用过时，由 DB 返回顺序决定（通常为 ID 升序）
+3. `last_used_at` 由 `DeferredService` **异步批量刷写**，非实时；服务重启后短期内两账号 LastUsedAt 相同，需等首轮刷新后 LRU 才生效
+
+**Claude 账号的额外调度检查**
+
+在候选账号进入选号之前，系统会逐项检查以下条件（任意一项不满足则跳过该账号）：
+
+| 检查项 | 说明 | 对应字段 / 逻辑 |
+|-------|------|--------------|
+| 可调度状态 | 账号未被标记错误或禁用 | `account.IsSchedulable()` |
+| 模型支持 | 账号支持请求的模型 | `isModelSupportedByAccount()` |
+| 模型调度 | 模型未被速率限制 | `isAccountSchedulableForModelSelection()` |
+| 配额检查 | APIKey/Bedrock 类型未超出配额 | `isAccountSchedulableForQuota()` |
+| 窗口费用 | 5h 累计费用未超阈值 | `isAccountSchedulableForWindowCost()` |
+| RPM 限制 | 每分钟请求数未超限 | `isAccountSchedulableForRPM()` |
+
+**窗口费用（window_cost）三级状态**
+
+Claude OAuth/SetupToken 账号特有的消耗量调度机制：
+
+| 状态 | 条件 | 行为 |
+|------|------|------|
+| `WindowCostSchedulable` | 累计费用 < 阈值 | 正常参与选号 |
+| `WindowCostStickyOnly` | 费用处于 `sticky_reserve` 区间 | 仅粘性会话可复用，新会话跳过此账号 |
+| `WindowCostNotSchedulable` | 费用 ≥ 阈值 | 新会话和粘性会话均跳过 |
+
+**同优先级双账号的典型场景**
+
+| 场景 | 走到哪层 | 结果 |
+|------|---------|------|
+| 不同用户/对话并发请求 | LRU 选号 | 按最久未用轮转，两账号消耗均衡 |
+| 同一对话多轮消息 | Redis 粘性命中 | 固定同一账号，不在账号间分摊 |
+| 账号 A 窗口费用耗尽 | windowCost 过滤 | 新会话自动路由到账号 B |
+| 账号 A RPM 超限 | RPM 过滤 | 跳过账号 A，选账号 B |
+| 账号 A 上游故障 | excludedIDs 过滤 | 本次请求切到账号 B，重建粘性会话 |
+| 粘性会话 1h 过期 | 重新 LRU 选号 | 按当时 LastUsedAt 重新分配 |
+| 全新账号（都未使用过） | LRU（nil=nil 平局） | DB 顺序决定初始命中，DeferredService 刷新后才正常轮转 |
+
+---
+
+### OpenAI（GPT）账号调度
+
+OpenAI 使用独立的 `OpenAIAccountScheduler`，选号分三层：
+
+```mermaid
+flowchart TD
+    REQ[收到请求] --> L1{Layer 1<br/>previous_response_id<br/>粘性?}
+    L1 -- 命中 --> USE[使用对应账号]
+    L1 -- 未命中 --> L2{Layer 2<br/>session_hash<br/>Redis 粘性?}
+    L2 -- 命中 --> USE
+    L2 -- 未命中 --> L3[Layer 3: 多因子加权评分]
+
+    L3 --> SCORE["score = Priority × w₁
+    + LoadRate × w₂
+    + QueueDepth × w₃
+    + ErrorRate × w₄
+    + TTFT × w₅"]
+    SCORE --> TOPK[取 Top-K 候选]
+    TOPK --> WGT[按分值加权随机选取]
+    WGT --> BIND[绑定 session_hash → accountID]
+    BIND --> USE
+
+    USE --> FWD[转发请求]
+    FWD --> ERR{上游出错?}
+    ERR -- 否 --> OK[返回响应]
+    ERR -- 是 --> SWITCH[切换账号 + 上报 ReportSwitch]
+    SWITCH --> L3
+```
+
+**OpenAI 评分因子**
+
+| 因子 | 含义 | 数据来源 |
+|------|------|---------|
+| `priorityFactor` | 账号优先级，越小越优先 | `account.priority` |
+| `loadFactor` | `1 - (当前并发 / 最大并发)` | Redis 实时并发槽 |
+| `queueFactor` | `1 - (等待请求数 / 最大等待数)` | Redis 实时队列 |
+| `errorFactor` | `1 - 错误率 EWMA` | 运行时动态统计 |
+| `ttftFactor` | 首 token 延迟越低越好（EWMA） | 运行时动态统计 |
+
+**Claude vs OpenAI 调度核心差异**
+
+| 维度 | Claude | OpenAI |
+|------|--------|--------|
+| 新会话选号依据 | LRU（最久未使用）+ 优先级 | 多因子加权评分（并发、错误率、TTFT）|
+| 消耗量感知 | ✅ `window_cost` 5h 窗口限制 | ❌ 无累计消耗量维度 |
+| 并发感知 | 部分（通过 LoadAwareness 扩展路径） | ✅ 核心评分因子 |
+| 错误率感知 | ❌（靠故障转移事后处理） | ✅ EWMA 实时降权 |
+| 首 token 延迟感知 | ❌ | ✅ EWMA 实时优选低延迟账号 |
+| Layer 1 路由 | 无（模型路由为独立配置） | `previous_response_id` 跨请求粘性 |
+
+---
 
 **调度参数**
 
@@ -319,6 +429,7 @@ flowchart TD
 | Claude 最大故障转移次数 | 10 次 |
 | Gemini 最大故障转移次数 | 3 次 |
 | 并发控制字段 | `account.concurrency`（默认 3） |
+| LastUsedAt 刷写方式 | DeferredService 批量异步写入 DB |
 
 **自动切换的前提条件**
 
@@ -331,7 +442,7 @@ flowchart TD
 
 | 请求场景 | 分摊效果 | 原因 |
 |---------|---------|------|
-| 多个不同用户 / 不同对话并发请求 | ✅ 自动分摊 | 各请求 sessionHash 不同，各自独立按负载（`load_factor + current_concurrency`）选最低负载账号 |
+| 多个不同用户 / 不同对话并发请求 | ✅ 自动分摊 | 各请求 sessionHash 不同，各自独立走选号逻辑分配到不同账号 |
 | 同一用户的同一对话（多轮消息） | ❌ 不分摊 | sessionHash 相同，1 小时内复用同一账号（粘性会话），直到该账号限流或不可用才切换 |
 
 ---

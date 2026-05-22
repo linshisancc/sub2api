@@ -284,6 +284,7 @@ function newRuleDraft(): AlertRule {
     sustained_minutes: 2,
     severity: 'P1',
     cooldown_minutes: 10,
+    min_requests: 0,
     notify_email: true
   }
 }
@@ -552,6 +553,12 @@ function cancelDelete() {
           <div>
             <label class="input-label">{{ t('admin.ops.alertRules.form.cooldown') }}</label>
             <input v-model.number="draft!.cooldown_minutes" class="input" type="number" min="0" max="1440" />
+          </div>
+
+          <div>
+            <label class="input-label">{{ t('admin.ops.alertRules.form.minRequests') }}</label>
+            <input v-model.number="draft!.min_requests" class="input" type="number" min="0" />
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.ops.alertRules.hints.minRequests') }}</p>
           </div>
 
           <div class="flex items-center justify-between rounded-xl bg-gray-50 px-4 py-3 dark:bg-dark-800/50 md:col-span-2">

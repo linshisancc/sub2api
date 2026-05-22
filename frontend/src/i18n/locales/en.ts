@@ -4902,7 +4902,8 @@ export default {
         hints: {
           recommended: 'Recommended: operator {operator}, threshold {threshold}{unit}',
           groupRequired: 'This is a group-level metric; selecting a group (group_id) is required.',
-          groupOptional: 'Optional: limit the rule to a specific group via group_id.'
+          groupOptional: 'Optional: limit the rule to a specific group via group_id.',
+          minRequests: 'Skip evaluation when request count is below this threshold (0 = no minimum). Prevents false positives on low-traffic rules.'
         },
         table: {
           name: 'Name',
@@ -4924,6 +4925,7 @@ export default {
           window: 'Window (minutes)',
           sustained: 'Sustained (samples)',
           cooldown: 'Cooldown (minutes)',
+          minRequests: 'Min Requests',
           enabled: 'Enabled',
           notifyEmail: 'Send email notifications'
         },
