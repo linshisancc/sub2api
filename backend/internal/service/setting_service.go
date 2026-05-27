@@ -1859,6 +1859,7 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	}
 	if encoded, err := marshalStringArray(settings.ScheduledWarmupPlatforms); err == nil {
 		updates[SettingKeyScheduledWarmupPlatforms] = encoded
+	}
 	// 系统全局 platform quota：整体替换语义（null/缺省 = 不限制）。
 	if settings.DefaultPlatformQuotas != nil {
 		if err := validateDefaultPlatformQuotaMap(settings.DefaultPlatformQuotas); err != nil {
@@ -3321,6 +3322,7 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 	result.ScheduledWarmupPlatforms = parseStringJSONArray(settings[SettingKeyScheduledWarmupPlatforms])
 	if len(result.ScheduledWarmupPlatforms) == 0 {
 		result.ScheduledWarmupPlatforms = []string{"anthropic", "openai", "gemini", "antigravity"}
+	}
 	// 系统层默认 platform quota（修复 Bug B：parseSettings 不填充导致回显恒为 nil）
 	if raw := settings[SettingKeyDefaultPlatformQuotas]; raw != "" {
 		parsed := map[string]*DefaultPlatformQuotaSetting{}
@@ -4682,6 +4684,8 @@ func marshalStringArray(in []string) (string, error) {
 		return "", err
 	}
 	return string(b), nil
+}
+
 // GetDefaultPlatformQuotas 读取系统全局 platform quota JSON key，返回 4 platform x 3 window 的设置。
 // 永远返回包含全部 4 platform key 的 map（值可能为零值/nil 字段，表示"上层未配置 = 不限制"）。
 //
