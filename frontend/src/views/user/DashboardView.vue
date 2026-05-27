@@ -3,8 +3,7 @@
     <div class="space-y-6">
       <div v-if="loading" class="flex items-center justify-center py-12"><LoadingSpinner /></div>
       <template v-else-if="stats">
-        <UserDashboardStats :stats="stats" :balance="user?.balance || 0" :is-simple="authStore.isSimpleMode" />
-
+        <UserDashboardStats :stats="stats" :balance="user?.balance || 0" :is-simple="authStore.isSimpleMode" :platform-quotas="platformQuotas" />
         <UserDashboardCharts v-model:startDate="startDate" v-model:endDate="endDate" v-model:granularity="granularity" :loading="loadingCharts" :trend="trendData" :models="modelStats" @dateRangeChange="loadCharts" @granularityChange="loadCharts" @refresh="refreshAll" />
         <GroupAccountsWidget mode="user" />
         <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
@@ -27,7 +26,8 @@ import UserDashboardCharts from '@/components/user/dashboard/UserDashboardCharts
 import UserDashboardRecentUsage from '@/components/user/dashboard/UserDashboardRecentUsage.vue'
 import UserDashboardQuickActions from '@/components/user/dashboard/UserDashboardQuickActions.vue'
 import GroupAccountsWidget from '@/components/dashboard/GroupAccountsWidget.vue'
-import type { UsageLog, TrendDataPoint, ModelStat } from '@/types'
+import type { UsageLog, TrendDataPoint, ModelStat, PlatformQuotaItem } from '@/types'
+import { getMyPlatformQuotas } from '@/api/user'
 
 const authStore = useAuthStore()
 const user = computed(() => authStore.user)
@@ -38,6 +38,7 @@ const loadingCharts = ref(false)
 const trendData = ref<TrendDataPoint[]>([])
 const modelStats = ref<ModelStat[]>([])
 const recentUsage = ref<UsageLog[]>([])
+const platformQuotas = ref<PlatformQuotaItem[] | null>(null)
 
 const formatLD = (d: Date) => d.toISOString().split('T')[0]
 const startDate = ref(formatLD(new Date(Date.now() - 6 * 86400000)))
@@ -85,7 +86,17 @@ const loadRecent = async () => {
   }
 }
 
-const refreshAll = () => { loadStats(); loadCharts(); loadRecent() }
+const loadPlatformQuotas = async () => {
+  try {
+    const data = await getMyPlatformQuotas()
+    platformQuotas.value = data.platform_quotas ?? []
+  } catch (error) {
+    console.warn('Failed to load platform quotas:', error)
+    platformQuotas.value = []
+  }
+}
+
+const refreshAll = () => { loadStats(); loadCharts(); loadRecent(); loadPlatformQuotas() }
 
 onMounted(() => { refreshAll() })
 </script>
