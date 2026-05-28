@@ -66,7 +66,7 @@ docker build --platform linux/amd64 -t linshisancc/sub2api:latest -f deploy/Dock
 docker push linshisancc/sub2api:latest
 ```
 
-也可以同时打版本 tag，方便回滚：
+也可以同时打版本 tag，方便回滚，（先检查下本机的 sub2api 镜像 tag 版本号，按真实去递增，工作目录必须在 sub2api ）：
 
 ```bash
 docker build --platform linux/amd64 -t linshisancc/sub2api:v1.2.0 -t linshisancc/sub2api:latest -f deploy/Dockerfile .
