@@ -74,10 +74,10 @@ func TestProvideCleanup_WithMinimalDependencies_NoPanic(t *testing.T) {
 		antigravityOAuthSvc,
 		nil, // openAIGateway
 		nil, // scheduledTestRunner
+		nil, // accountWarmup
 		nil, // backupSvc
 		nil, // paymentOrderExpiry
 		nil, // channelMonitorRunner
-		nil, // accountWarmup
 	)
 
 	require.NotPanics(t, func() {
