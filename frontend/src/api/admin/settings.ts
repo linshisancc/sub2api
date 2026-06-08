@@ -631,6 +631,9 @@ export interface SystemSettings {
   scheduled_warmup_holidays: string[];
   scheduled_warmup_extra_workdays: string[];
   scheduled_warmup_platforms: string[];
+
+  // Allow user view error requests
+  allow_user_view_error_requests: boolean;
 }
 
 export interface UpdateSettingsRequest {
@@ -880,6 +883,8 @@ export interface UpdateSettingsRequest {
   scheduled_warmup_holidays?: string[];
   scheduled_warmup_extra_workdays?: string[];
   scheduled_warmup_platforms?: string[];
+
+  allow_user_view_error_requests?: boolean;
 }
 
 /**
