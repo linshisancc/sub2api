@@ -308,7 +308,7 @@ func (s *warmupAccountStub) ListExpiredRateLimitedAccounts(context.Context) ([]A
 func (s *warmupAccountStub) SetRateLimited(context.Context, int64, time.Time) error {
 	panic("unexpected")
 }
-func (s *warmupAccountStub) SetModelRateLimit(context.Context, int64, string, time.Time) error {
+func (s *warmupAccountStub) SetModelRateLimit(context.Context, int64, string, time.Time, ...string) error {
 	panic("unexpected")
 }
 func (s *warmupAccountStub) SetOverloaded(context.Context, int64, time.Time) error {
@@ -323,7 +323,11 @@ func (s *warmupAccountStub) ClearTempUnschedulable(context.Context, int64) error
 func (s *warmupAccountStub) ClearRateLimit(context.Context, int64) error             { panic("unexpected") }
 func (s *warmupAccountStub) ClearAntigravityQuotaScopes(context.Context, int64) error { panic("unexpected") }
 func (s *warmupAccountStub) ClearModelRateLimits(context.Context, int64) error       { panic("unexpected") }
+func (s *warmupAccountStub) RevertProxyFallback(context.Context, int64) error         { panic("unexpected") }
 func (s *warmupAccountStub) UpdateSessionWindow(context.Context, int64, *time.Time, *time.Time, string) error {
+	panic("unexpected")
+}
+func (s *warmupAccountStub) UpdateSessionWindowEnd(context.Context, int64, time.Time) error {
 	panic("unexpected")
 }
 func (s *warmupAccountStub) UpdateExtra(context.Context, int64, map[string]any) error { panic("unexpected") }
