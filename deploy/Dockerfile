@@ -29,6 +29,8 @@ RUN pnpm config set registry https://registry.npmmirror.com && \
 
 # Copy frontend source and build
 COPY frontend/ ./
+# docs/legal is referenced by frontend via relative path (../../../../docs/legal/)
+COPY docs/legal/ /app/docs/legal/
 RUN pnpm run build
 
 # -----------------------------------------------------------------------------
