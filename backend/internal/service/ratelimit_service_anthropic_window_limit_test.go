@@ -5,7 +5,9 @@ package service
 import (
 	"context"
 	"net/http"
+	"net/http/httptest"
 	"strconv"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -65,4 +67,54 @@ func TestHandleUpstreamError_AnthropicWindowLimitPreemptsTempUnschedRule(t *test
 	require.Zero(t, repo.tempUnschedCalls, "official Anthropic window limits should not be shortened by local temp-unsched rules")
 	require.Equal(t, 1, repo.rateLimitCalls)
 	require.Equal(t, resetAt, repo.lastRateLimitReset)
+}
+
+func TestHandleUpstreamError_AnthropicWindowLimitSendsRateLimitedWebhook(t *testing.T) {
+	resetAt := time.Now().Add(3 * time.Hour).Truncate(time.Second)
+	headers := http.Header{}
+	headers.Set("anthropic-ratelimit-unified-5h-utilization", "1.02")
+	headers.Set("anthropic-ratelimit-unified-5h-reset", strconv.FormatInt(resetAt.Unix(), 10))
+
+	var webhookHits int32
+	webhookCalled := make(chan struct{}, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&webhookHits, 1)
+		select {
+		case webhookCalled <- struct{}{}:
+		default:
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(server.Close)
+
+	settings := newFeishuTestSettingRepo()
+	require.NoError(t, settings.Set(context.Background(), SettingKeyFeishuWebhookEnabled, "true"))
+	require.NoError(t, settings.Set(context.Background(), SettingKeyFeishuWebhookURL, server.URL))
+	require.NoError(t, settings.Set(context.Background(), SettingKeyFeishuWebhookNotifyAccount, "true"))
+
+	repo := &anthropicWindowLimitRepo{}
+	svc := NewRateLimitService(repo, nil, nil, nil, nil)
+	svc.SetFeishuWebhookService(NewFeishuWebhookService(settings, nil))
+	account := &Account{
+		ID:       42,
+		Name:     "claude-window-account",
+		Type:     AccountTypeOAuth,
+		Platform: PlatformAnthropic,
+	}
+
+	svc.HandleUpstreamError(
+		context.Background(),
+		account,
+		http.StatusTooManyRequests,
+		headers,
+		[]byte(`{"type":"error","error":{"type":"rate_limit_error","message":"This request would exceed your account's rate limit. Please try again later."}}`),
+	)
+
+	require.Equal(t, 1, repo.rateLimitCalls)
+	select {
+	case <-webhookCalled:
+	case <-time.After(2 * time.Second):
+		t.Fatal("expected account rate-limited webhook to be sent")
+	}
+	require.Equal(t, int32(1), atomic.LoadInt32(&webhookHits))
 }

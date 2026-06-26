@@ -1225,6 +1225,7 @@ func (s *RateLimitService) persistAnthropicExhaustedWindowLimit(ctx context.Cont
 		"window", limit.window,
 		"reset_at", limit.resetAt,
 		"reset_in", time.Until(limit.resetAt).Truncate(time.Second))
+	s.NotifyAccountRateLimited(account, limit.resetAt)
 	return true
 }
 

@@ -218,6 +218,29 @@
 > 通知收到了、到点后无新请求、恢复通知缺失。被动请求路径（有流量打到账号时清理）
 > 不受影响，因此问题只在"窗口到期后无流量"场景下复现。
 
+#### 近期修复记录：Claude 官方窗口限流进入通知缺失
+
+2026-06-26 排查发现：近期合并 upstream 后新增的 Anthropic / Claude 官方 5h / 7d
+窗口耗尽优先处理路径 `persistAnthropicExhaustedWindowLimit()` 会在检测到
+`anthropic-ratelimit-unified-5h-*` / `anthropic-ratelimit-unified-7d-*` 头达到限流
+条件时，直接写入 `rate_limit_reset_at` 并提前返回，用于避免被本地临时不可调度规则
+把官方多小时窗口缩短为几分钟冷却。
+
+该路径原本只调用 `SetRateLimited()` 写入 DB 和调度缓存，没有调用
+`NotifyAccountRateLimited()`，因此会出现：
+
+- 账号进入 Claude 官方 5h / 7d 限流：后台状态已变为「限流中」，但飞书不推送「账号限流告警」；
+- 窗口到期后 `ClearRateLimit()` 清理状态：仍会推送「账号限流恢复」。
+
+修复点：
+
+- `backend/internal/service/ratelimit_service.go`：
+  `persistAnthropicExhaustedWindowLimit()` 在 `SetRateLimited()` 成功后补充调用
+  `s.NotifyAccountRateLimited(account, limit.resetAt)`。
+- `backend/internal/service/ratelimit_service_anthropic_window_limit_test.go`：
+  新增回归测试 `TestHandleUpstreamError_AnthropicWindowLimitSendsRateLimitedWebhook`，
+  使用本地 `httptest` webhook 验证 Claude 官方窗口耗尽时会发送「账号限流告警」。
+
 #### 扫描频率（如何调整）
 
 后台扫描周期目前**硬编码为 2 分钟**，位置 `backend/internal/service/ratelimit_service.go:1492`：
