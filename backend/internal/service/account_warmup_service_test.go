@@ -195,9 +195,9 @@ func TestBuildWarmupCardBody_TruncatesFailures(t *testing.T) {
 
 // warmupSettingStub is a minimal SettingRepository stub for warmup tests.
 type warmupSettingStub struct {
-	values  map[string]string
+	values   map[string]string
 	setCalls []string // keys passed to Set
-	setErr  error
+	setErr   error
 }
 
 func (s *warmupSettingStub) Get(_ context.Context, _ string) (*Setting, error) {
@@ -242,10 +242,15 @@ func (s *warmupAccountStub) ListSchedulableByPlatforms(_ context.Context, _ []st
 
 // -- all unused methods panic --
 
-func (s *warmupAccountStub) Create(context.Context, *Account) error                    { panic("unexpected") }
-func (s *warmupAccountStub) GetByID(context.Context, int64) (*Account, error)          { panic("unexpected") }
-func (s *warmupAccountStub) GetByIDs(context.Context, []int64) ([]*Account, error)     { panic("unexpected") }
-func (s *warmupAccountStub) ExistsByID(context.Context, int64) (bool, error)           { panic("unexpected") }
+func (s *warmupAccountStub) ListOAuthRefreshCandidates(context.Context) ([]Account, error) {
+	panic("unexpected")
+}
+func (s *warmupAccountStub) Create(context.Context, *Account) error           { panic("unexpected") }
+func (s *warmupAccountStub) GetByID(context.Context, int64) (*Account, error) { panic("unexpected") }
+func (s *warmupAccountStub) GetByIDs(context.Context, []int64) ([]*Account, error) {
+	panic("unexpected")
+}
+func (s *warmupAccountStub) ExistsByID(context.Context, int64) (bool, error) { panic("unexpected") }
 func (s *warmupAccountStub) GetByCRSAccountID(context.Context, string) (*Account, error) {
 	panic("unexpected")
 }
@@ -255,16 +260,18 @@ func (s *warmupAccountStub) FindByExtraField(context.Context, string, any) ([]Ac
 func (s *warmupAccountStub) ListCRSAccountIDs(context.Context) (map[string]int64, error) {
 	panic("unexpected")
 }
-func (s *warmupAccountStub) Update(context.Context, *Account) error        { panic("unexpected") }
-func (s *warmupAccountStub) Delete(context.Context, int64) error           { panic("unexpected") }
+func (s *warmupAccountStub) Update(context.Context, *Account) error { panic("unexpected") }
+func (s *warmupAccountStub) Delete(context.Context, int64) error    { panic("unexpected") }
 func (s *warmupAccountStub) List(context.Context, pagination.PaginationParams) ([]Account, *pagination.PaginationResult, error) {
 	panic("unexpected")
 }
 func (s *warmupAccountStub) ListWithFilters(context.Context, pagination.PaginationParams, string, string, string, string, int64, string) ([]Account, *pagination.PaginationResult, error) {
 	panic("unexpected")
 }
-func (s *warmupAccountStub) ListByGroup(context.Context, int64) ([]Account, error) { panic("unexpected") }
-func (s *warmupAccountStub) ListActive(context.Context) ([]Account, error)          { panic("unexpected") }
+func (s *warmupAccountStub) ListByGroup(context.Context, int64) ([]Account, error) {
+	panic("unexpected")
+}
+func (s *warmupAccountStub) ListActive(context.Context) ([]Account, error) { panic("unexpected") }
 func (s *warmupAccountStub) ListByPlatform(context.Context, string) ([]Account, error) {
 	panic("unexpected")
 }
@@ -320,22 +327,31 @@ func (s *warmupAccountStub) SetTempUnschedulable(context.Context, int64, time.Ti
 func (s *warmupAccountStub) ClearTempUnschedulable(context.Context, int64) error {
 	panic("unexpected")
 }
-func (s *warmupAccountStub) ClearRateLimit(context.Context, int64) error             { panic("unexpected") }
-func (s *warmupAccountStub) ClearAntigravityQuotaScopes(context.Context, int64) error { panic("unexpected") }
-func (s *warmupAccountStub) ClearModelRateLimits(context.Context, int64) error       { panic("unexpected") }
-func (s *warmupAccountStub) RevertProxyFallback(context.Context, int64) error         { panic("unexpected") }
+func (s *warmupAccountStub) ClearRateLimit(context.Context, int64) error { panic("unexpected") }
+func (s *warmupAccountStub) ClearAntigravityQuotaScopes(context.Context, int64) error {
+	panic("unexpected")
+}
+func (s *warmupAccountStub) ClearModelRateLimits(context.Context, int64) error { panic("unexpected") }
+func (s *warmupAccountStub) RevertProxyFallback(context.Context, int64) error  { panic("unexpected") }
 func (s *warmupAccountStub) UpdateSessionWindow(context.Context, int64, *time.Time, *time.Time, string) error {
 	panic("unexpected")
 }
 func (s *warmupAccountStub) UpdateSessionWindowEnd(context.Context, int64, time.Time) error {
 	panic("unexpected")
 }
-func (s *warmupAccountStub) UpdateExtra(context.Context, int64, map[string]any) error { panic("unexpected") }
+func (s *warmupAccountStub) UpdateExtra(context.Context, int64, map[string]any) error {
+	panic("unexpected")
+}
 func (s *warmupAccountStub) BulkUpdate(context.Context, []int64, AccountBulkUpdate) (int64, error) {
 	panic("unexpected")
 }
-func (s *warmupAccountStub) IncrementQuotaUsed(context.Context, int64, float64) error { panic("unexpected") }
-func (s *warmupAccountStub) ResetQuotaUsed(context.Context, int64) error               { panic("unexpected") }
+func (s *warmupAccountStub) IncrementQuotaUsed(context.Context, int64, float64) error {
+	panic("unexpected")
+}
+func (s *warmupAccountStub) ResetQuotaUsed(context.Context, int64) error { panic("unexpected") }
+func (s *warmupAccountStub) ListShadowsByParent(context.Context, int64) ([]*Account, error) {
+	panic("unexpected")
+}
 
 var _ AccountRepository = (*warmupAccountStub)(nil)
 
