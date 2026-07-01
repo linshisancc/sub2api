@@ -366,7 +366,7 @@ func (s *AccountWarmupService) loadConfig(ctx context.Context) (*warmupConfig, b
 
 	platforms := parseStringJSONArray(values[SettingKeyScheduledWarmupPlatforms])
 	if len(platforms) == 0 {
-		platforms = []string{"anthropic", "openai", "gemini", "antigravity"}
+		platforms = append([]string(nil), AllowedQuotaPlatforms...)
 	}
 
 	calendar := NewWorkdayCalendar(

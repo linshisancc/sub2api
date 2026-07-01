@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"reflect"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -384,6 +385,20 @@ func newWarmupServiceForTest(settingRepo SettingRepository, accountRepo AccountR
 	}
 	svc.stopCtx, svc.stop = context.WithCancel(context.Background())
 	return svc
+}
+
+func TestLoadConfig_DefaultPlatformsFollowAllowedQuotaPlatforms(t *testing.T) {
+	values := baseWarmupSettings(time.Now().In(time.UTC).Format("2006-01-02"))
+	values[SettingKeyScheduledWarmupPlatforms] = ""
+
+	svc := newWarmupServiceForTest(&warmupSettingStub{values: values}, &warmupAccountStub{})
+	cfg, ok := svc.loadConfig(context.Background())
+	if !ok {
+		t.Fatal("expected loadConfig to succeed")
+	}
+	if !reflect.DeepEqual(cfg.platforms, AllowedQuotaPlatforms) {
+		t.Fatalf("default warmup platforms = %#v, want %#v", cfg.platforms, AllowedQuotaPlatforms)
+	}
 }
 
 // TestRunNow_RejectsWhenAlreadyRanUnderLock verifies that RunNow(force=false) re-checks

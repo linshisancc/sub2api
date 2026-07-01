@@ -149,6 +149,7 @@ const warmupPlatformOptions = [
   "openai",
   "gemini",
   "antigravity",
+  "grok",
 ];
 
 const warmupRunForce = ref(false);

@@ -8168,7 +8168,7 @@ const form = reactive<SettingsForm>({
   scheduled_warmup_workday_only: true,
   scheduled_warmup_holidays: [],
   scheduled_warmup_extra_workdays: [],
-  scheduled_warmup_platforms: ["anthropic", "openai", "gemini", "antigravity"],
+  scheduled_warmup_platforms: ["anthropic", "openai", "gemini", "antigravity", "grok"],
   // Channel Monitor feature switch
   channel_monitor_enabled: true,
   channel_monitor_default_interval_seconds: 60,
