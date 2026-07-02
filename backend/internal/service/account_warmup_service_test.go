@@ -139,15 +139,88 @@ func TestCronCrossed_InvalidSpec(t *testing.T) {
 	}
 }
 
+func TestWarmupWindowCrossed_IncludesFollowUpFiveHourWindows(t *testing.T) {
+	loc := time.UTC
+	day := func(h, m int) time.Time { return time.Date(2026, 5, 21, h, m, 0, 0, loc) }
+
+	tests := []struct {
+		name      string
+		prev      time.Time
+		now       time.Time
+		wantStart time.Time
+		wantOK    bool
+	}{
+		{"crosses first configured window", day(7, 59), day(8, 0), day(8, 0), true},
+		{"crosses second 5h window", day(12, 59), day(13, 0), day(13, 0), true},
+		{"crosses third 5h window", day(17, 59), day(18, 0), day(18, 0), true},
+		{"between windows", day(13, 1), day(13, 2), time.Time{}, false},
+		{"before configured anchor", day(7, 0), day(7, 59), time.Time{}, false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, _, ok := warmupWindowCrossed("0 8 * * *", tc.prev, tc.now)
+			if ok != tc.wantOK {
+				t.Fatalf("ok = %v, want %v (start=%v)", ok, tc.wantOK, got)
+			}
+			if ok && !got.Equal(tc.wantStart) {
+				t.Fatalf("start = %v, want %v", got, tc.wantStart)
+			}
+		})
+	}
+}
+
+func TestCurrentWarmupWindowStart_TracksLatestWindowToday(t *testing.T) {
+	loc := time.UTC
+	at := func(h, m int) time.Time { return time.Date(2026, 5, 21, h, m, 0, 0, loc) }
+
+	tests := []struct {
+		now       time.Time
+		wantStart time.Time
+		wantOK    bool
+	}{
+		{now: at(7, 59), wantOK: false},
+		{now: at(8, 0), wantStart: at(8, 0), wantOK: true},
+		{now: at(12, 59), wantStart: at(8, 0), wantOK: true},
+		{now: at(13, 0), wantStart: at(13, 0), wantOK: true},
+		{now: at(17, 59), wantStart: at(13, 0), wantOK: true},
+		{now: at(18, 0), wantStart: at(18, 0), wantOK: true},
+	}
+	for _, tc := range tests {
+		got, _, ok := currentWarmupWindowStart("0 8 * * *", tc.now)
+		if ok != tc.wantOK {
+			t.Fatalf("currentWarmupWindowStart(%v) ok = %v, want %v", tc.now, ok, tc.wantOK)
+		}
+		if ok && !got.Equal(tc.wantStart) {
+			t.Fatalf("currentWarmupWindowStart(%v) = %v, want %v", tc.now, got, tc.wantStart)
+		}
+	}
+}
+
+func TestWarmupLastRunMatchesWindow_CompatLegacyDateOnlyForAnchorWindow(t *testing.T) {
+	first := time.Date(2026, 5, 21, 8, 0, 0, 0, time.UTC)
+	second := time.Date(2026, 5, 21, 13, 0, 0, 0, time.UTC)
+
+	if !warmupLastRunMatchesWindow("2026-05-21", first, first) {
+		t.Fatal("legacy date should match the first configured 08:00 window")
+	}
+	if warmupLastRunMatchesWindow("2026-05-21", second, first) {
+		t.Fatal("legacy date must not block the 13:00 follow-up window")
+	}
+	if !warmupLastRunMatchesWindow("2026-05-21T13:00", second, first) {
+		t.Fatal("window-level key should match its exact window")
+	}
+}
+
 func TestBuildWarmupCardBody(t *testing.T) {
 	summary := &WarmupSummary{
 		ExecutedAt: time.Date(2026, 5, 21, 8, 0, 12, 0, time.UTC),
 		Source:     "schedule",
-		Platforms:  []string{"anthropic", "openai"},
-		Total:      3,
+		Platforms:  []string{"anthropic", "openai", "grok"},
+		Total:      4,
 		Successes: []WarmupAccountResult{
 			{AccountID: 1, Name: "ant-1", Platform: "anthropic", LatencyMs: 320},
 			{AccountID: 2, Name: "oai-1", Platform: "openai", LatencyMs: 410},
+			{AccountID: 4, Name: "grok-1", Platform: "grok", LatencyMs: 280},
 		},
 		Failures: []WarmupAccountResult{
 			{AccountID: 3, Name: "ant-2", Platform: "anthropic", Error: "401 invalid_api_key"},
@@ -158,17 +231,32 @@ func TestBuildWarmupCardBody(t *testing.T) {
 	mustContain := []string{
 		"时间：2026-05-21",
 		"触发来源：schedule",
-		"覆盖平台：anthropic, openai",
-		"共处理：3 个账号",
-		"✅ 成功：2",
+		"覆盖平台：Anthropic, OpenAI, Grok",
+		"共处理：4 个账号",
+		"✅ 成功：3",
+		"Grok: 1",
 		"❌ 失败：1",
 		"ant-2",
+		"Anthropic",
 		"401 invalid_api_key",
 	}
 	for _, s := range mustContain {
 		if !contains(body, s) {
 			t.Errorf("body missing %q\nbody=%s", s, body)
 		}
+	}
+}
+
+func TestFormatPlatformCounts_UsesKnownPlatformOrderAndLabels(t *testing.T) {
+	got := formatPlatformCounts(map[string]int{
+		"grok":        2,
+		"openai":      1,
+		"antigravity": 3,
+		"custom":      4,
+	})
+	want := "OpenAI: 1, Antigravity: 3, Grok: 2, custom: 4"
+	if got != want {
+		t.Fatalf("formatPlatformCounts() = %q, want %q", got, want)
 	}
 }
 
@@ -198,6 +286,7 @@ func TestBuildWarmupCardBody_TruncatesFailures(t *testing.T) {
 type warmupSettingStub struct {
 	values   map[string]string
 	setCalls []string // keys passed to Set
+	setVals  map[string]string
 	setErr   error
 }
 
@@ -207,8 +296,12 @@ func (s *warmupSettingStub) Get(_ context.Context, _ string) (*Setting, error) {
 func (s *warmupSettingStub) GetValue(_ context.Context, key string) (string, error) {
 	return s.values[key], nil
 }
-func (s *warmupSettingStub) Set(_ context.Context, key, _ string) error {
+func (s *warmupSettingStub) Set(_ context.Context, key, value string) error {
 	s.setCalls = append(s.setCalls, key)
+	if s.setVals == nil {
+		s.setVals = make(map[string]string)
+	}
+	s.setVals[key] = value
 	return s.setErr
 }
 func (s *warmupSettingStub) GetMultiple(_ context.Context, keys []string) (map[string]string, error) {
@@ -406,20 +499,26 @@ func TestLoadConfig_DefaultPlatformsFollowAllowedQuotaPlatforms(t *testing.T) {
 // call's cfg snapshot showed an empty date.
 func TestRunNow_RejectsWhenAlreadyRanUnderLock(t *testing.T) {
 	today := time.Now().In(time.UTC).Format("2006-01-02")
+	now := time.Now().In(time.UTC)
+	windowStart, _, ok := currentWarmupWindowStart(accountWarmupDefaultCron, now)
+	if !ok {
+		windowStart = now
+	}
+	windowKey := warmupWindowRunKey(windowStart)
 
 	values := baseWarmupSettings(today)
 	// First loadConfig sees empty lastRunDate (first check passes).
-	// GetValue (called inside lock) returns today — simulating another call having just
-	// written the idempotency key.
+	// GetValue (called inside lock) returns this window's key — simulating another
+	// call having just written the idempotency key.
 	var getValueCallCount atomic.Int32
 	stub := &warmupSettingStub{values: values}
 
-	// Override GetValue to return today on the second call (the one inside the lock).
+	// Override GetValue to return this window key on the second call (the one inside the lock).
 	// We can't partially override so we use a wrapper.
 	wrappedStub := &getValueOverrideStub{
 		warmupSettingStub: stub,
 		overrideKey:       SettingKeyScheduledWarmupLastRunDate,
-		overrideValue:     today,
+		overrideValue:     windowKey,
 		callCount:         &getValueCallCount,
 	}
 
@@ -428,7 +527,7 @@ func TestRunNow_RejectsWhenAlreadyRanUnderLock(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error from lock-internal idempotency check, got nil")
 	}
-	if !strings.Contains(err.Error(), "already executed today") {
+	if !strings.Contains(err.Error(), "already executed for warmup window") {
 		t.Errorf("unexpected error: %v", err)
 	}
 }
@@ -466,7 +565,7 @@ func TestExecuteAndReport_SkipsIdempotencyWriteOnListError(t *testing.T) {
 		lastRunDate: "",
 		calendar:    NewWorkdayCalendar(nil, nil),
 	}
-	summary := svc.executeAndReport(cfg, time.Now().In(time.UTC), "manual")
+	summary := svc.executeAndReport(cfg, time.Now().In(time.UTC), "2026-05-21T08:00", "manual")
 
 	if summary.ListError == "" {
 		t.Fatal("expected ListError to be set")
@@ -495,7 +594,7 @@ func TestExecuteAndReport_WritesIdempotencyWhenListSucceeds(t *testing.T) {
 		lastRunDate: "",
 		calendar:    NewWorkdayCalendar(nil, nil),
 	}
-	svc.executeAndReport(cfg, time.Now().In(time.UTC), "manual")
+	svc.executeAndReport(cfg, time.Now().In(time.UTC), "2026-05-21T13:00", "manual")
 
 	wrote := false
 	for _, key := range settingStub.setCalls {
@@ -505,6 +604,9 @@ func TestExecuteAndReport_WritesIdempotencyWhenListSucceeds(t *testing.T) {
 	}
 	if !wrote {
 		t.Error("expected Set(SettingKeyScheduledWarmupLastRunDate) to be called when list succeeds with 0 accounts")
+	}
+	if got := settingStub.setVals[SettingKeyScheduledWarmupLastRunDate]; got != "2026-05-21T13:00" {
+		t.Fatalf("last_run_date value = %q, want window key", got)
 	}
 }
 

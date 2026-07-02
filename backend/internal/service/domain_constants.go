@@ -501,7 +501,7 @@ const (
 	SettingKeyScheduledWarmupHolidays      = "scheduled_warmup_holidays"       // 节假日 JSON 数组 ["2026-05-01",...]
 	SettingKeyScheduledWarmupExtraWorkdays = "scheduled_warmup_extra_workdays" // 补班日 JSON 数组
 	SettingKeyScheduledWarmupPlatforms     = "scheduled_warmup_platforms"      // 参与平台 JSON 数组
-	SettingKeyScheduledWarmupLastRunDate   = "scheduled_warmup_last_run_date"  // 上次执行的本地日期 YYYY-MM-DD（幂等）
+	SettingKeyScheduledWarmupLastRunDate   = "scheduled_warmup_last_run_date"  // 上次执行的本地窗口键 YYYY-MM-DDTHH:mm（幂等）
 
 	// Web Search Emulation
 	SettingKeyWebSearchEmulationConfig = "web_search_emulation_config" // JSON 配置

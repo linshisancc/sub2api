@@ -18,6 +18,7 @@ import (
 const (
 	accountWarmupDefaultMaxWorkers = 10
 	accountWarmupDefaultCron       = "0 8 * * *"
+	accountWarmupWindowInterval    = 5 * time.Hour
 	accountWarmupTickInterval      = 1 * time.Minute
 	accountWarmupLeaderLockKey     = "scheduled_warmup:leader"
 	accountWarmupLeaderLockTTL     = 15 * time.Minute
@@ -32,9 +33,9 @@ end
 return 0
 `)
 
-// AccountWarmupService runs a daily warmup against all schedulable accounts so
-// that the upstream 5-hour rate-limit window starts ticking at a known time
-// (typically 08:00 on workdays). It posts a single summary card to Feishu.
+// AccountWarmupService runs warmups against all schedulable accounts so each
+// upstream 5-hour rate-limit window starts ticking at a known time (typically
+// 08:00, 13:00, 18:00 on workdays). It posts one summary card per run to Feishu.
 type AccountWarmupService struct {
 	settingRepo    SettingRepository
 	accountRepo    AccountRepository
@@ -148,8 +149,9 @@ func (s *AccountWarmupService) run() {
 	}
 }
 
-// tick runs each minute. It returns early unless: enabled + cron crossed in this
-// interval + (optional) workday + not yet run today + leader lock acquired.
+// tick runs each minute. It returns early unless: enabled + a 5h warmup window
+// boundary crossed in this interval + (optional) workday + not yet run for this
+// window + leader lock acquired.
 func (s *AccountWarmupService) tick() {
 	prev := s.advanceLastTick()
 	now := s.now()
@@ -161,13 +163,15 @@ func (s *AccountWarmupService) tick() {
 	if !ok || !cfg.enabled {
 		return
 	}
-	if !cronCrossed(cfg.cronSpec, prev, now) {
+	windowStart, firstWindowStart, ok := warmupWindowCrossed(cfg.cronSpec, prev, now)
+	if !ok {
 		return
 	}
 	if cfg.workdayOnly && !cfg.calendar.IsWorkday(now) {
 		return
 	}
-	if cfg.lastRunDate == now.Format("2006-01-02") {
+	windowKey := warmupWindowRunKey(windowStart)
+	if warmupLastRunMatchesWindow(cfg.lastRunDate, windowStart, firstWindowStart) {
 		return
 	}
 
@@ -179,20 +183,22 @@ func (s *AccountWarmupService) tick() {
 		defer release()
 	}
 
-	// Re-check the "already ran today" guard under the lock to avoid two leaders
-	// across cycles double-firing if state is read before the previous run wrote.
+	// Re-check the "already ran this window" guard under the lock to avoid two
+	// leaders across cycles double-firing if state is read before the previous
+	// run wrote.
 	if latest, err := s.settingRepo.GetValue(ctx, SettingKeyScheduledWarmupLastRunDate); err == nil {
-		if strings.TrimSpace(latest) == now.Format("2006-01-02") {
+		if warmupLastRunMatchesWindow(latest, windowStart, firstWindowStart) {
 			return
 		}
 	}
 
-	s.executeAndReport(cfg, now, "schedule")
+	s.executeAndReport(cfg, now, windowKey, "schedule")
 }
 
 // RunNow triggers an immediate warmup, ignoring the cron schedule and
-// workday guard. It still respects the "already ran today" idempotency unless
-// `force` is true. Returns the summary so an admin endpoint can echo it.
+// workday guard. It still respects the "already ran for the current window"
+// idempotency unless `force` is true. Returns the summary so an admin endpoint
+// can echo it.
 func (s *AccountWarmupService) RunNow(ctx context.Context, force bool) (*WarmupSummary, error) {
 	if s == nil || s.accountRepo == nil || s.accountTestSvc == nil {
 		return nil, fmt.Errorf("warmup service not initialized")
@@ -205,8 +211,14 @@ func (s *AccountWarmupService) RunNow(ctx context.Context, force bool) (*WarmupS
 		return nil, fmt.Errorf("failed to load warmup config")
 	}
 	now := s.now()
-	if !force && cfg.lastRunDate == now.Format("2006-01-02") {
-		return nil, fmt.Errorf("already executed today: %s", cfg.lastRunDate)
+	windowStart, firstWindowStart, ok := currentWarmupWindowStart(cfg.cronSpec, now)
+	if !ok {
+		windowStart = now
+		firstWindowStart = now
+	}
+	windowKey := warmupWindowRunKey(windowStart)
+	if !force && warmupLastRunMatchesWindow(cfg.lastRunDate, windowStart, firstWindowStart) {
+		return nil, fmt.Errorf("already executed for warmup window: %s", windowKey)
 	}
 
 	release, ok := s.tryAcquireLeaderLock(ctx)
@@ -220,16 +232,16 @@ func (s *AccountWarmupService) RunNow(ctx context.Context, force bool) (*WarmupS
 	// Re-check under the lock to guard against concurrent RunNow calls.
 	if !force {
 		if latest, err := s.settingRepo.GetValue(ctx, SettingKeyScheduledWarmupLastRunDate); err == nil {
-			if strings.TrimSpace(latest) == now.Format("2006-01-02") {
-				return nil, fmt.Errorf("already executed today: %s", strings.TrimSpace(latest))
+			if warmupLastRunMatchesWindow(latest, windowStart, firstWindowStart) {
+				return nil, fmt.Errorf("already executed for warmup window: %s", windowKey)
 			}
 		}
 	}
 
-	return s.executeAndReport(cfg, now, "manual"), nil
+	return s.executeAndReport(cfg, now, windowKey, "manual"), nil
 }
 
-func (s *AccountWarmupService) executeAndReport(cfg *warmupConfig, now time.Time, source string) *WarmupSummary {
+func (s *AccountWarmupService) executeAndReport(cfg *warmupConfig, now time.Time, runKey string, source string) *WarmupSummary {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 
@@ -240,7 +252,10 @@ func (s *AccountWarmupService) executeAndReport(cfg *warmupConfig, now time.Time
 	// block the idempotency guarantee. Skip when account listing failed so
 	// the next cron tick can retry automatically.
 	if summary.ListError == "" {
-		if err := s.settingRepo.Set(ctx, SettingKeyScheduledWarmupLastRunDate, now.Format("2006-01-02")); err != nil {
+		if strings.TrimSpace(runKey) == "" {
+			runKey = now.Format("2006-01-02")
+		}
+		if err := s.settingRepo.Set(ctx, SettingKeyScheduledWarmupLastRunDate, runKey); err != nil {
 			slog.Warn("scheduled_warmup: failed to persist last_run_date", "error", err)
 		}
 	}
@@ -471,6 +486,71 @@ func cronCrossed(spec string, prev, now time.Time) bool {
 	}
 	next := sched.Next(prev)
 	return !next.After(now)
+}
+
+func warmupWindowCrossed(spec string, prev, now time.Time) (time.Time, time.Time, bool) {
+	if prev.IsZero() || !prev.Before(now) {
+		prev = now.Add(-accountWarmupTickInterval)
+	}
+	windowStart, firstWindowStart, ok := currentWarmupWindowStart(spec, now)
+	if !ok {
+		return time.Time{}, time.Time{}, false
+	}
+	if windowStart.After(prev) && !windowStart.After(now) {
+		return windowStart, firstWindowStart, true
+	}
+	return time.Time{}, time.Time{}, false
+}
+
+func currentWarmupWindowStart(spec string, now time.Time) (time.Time, time.Time, bool) {
+	if strings.TrimSpace(spec) == "" {
+		return time.Time{}, time.Time{}, false
+	}
+	sched, err := accountWarmupCronParser.Parse(spec)
+	if err != nil {
+		return time.Time{}, time.Time{}, false
+	}
+
+	dayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	first := sched.Next(dayStart.Add(-accountWarmupTickInterval))
+	if first.After(now) || !sameLocalDate(first, now) {
+		return time.Time{}, time.Time{}, false
+	}
+
+	windowStart := first
+	for {
+		next := windowStart.Add(accountWarmupWindowInterval)
+		if next.After(now) || !sameLocalDate(next, first) {
+			return windowStart, first, true
+		}
+		windowStart = next
+	}
+}
+
+func warmupWindowRunKey(windowStart time.Time) string {
+	if windowStart.IsZero() {
+		return ""
+	}
+	return windowStart.Format("2006-01-02T15:04")
+}
+
+func warmupLastRunMatchesWindow(lastRun string, windowStart, firstWindowStart time.Time) bool {
+	lastRun = strings.TrimSpace(lastRun)
+	if lastRun == "" || windowStart.IsZero() {
+		return false
+	}
+	if lastRun == warmupWindowRunKey(windowStart) {
+		return true
+	}
+	// Backward compatibility for deployments that already persisted the old
+	// daily value before window-level idempotency existed.
+	return lastRun == windowStart.Format("2006-01-02") && windowStart.Equal(firstWindowStart)
+}
+
+func sameLocalDate(a, b time.Time) bool {
+	ay, am, ad := a.Date()
+	by, bm, bd := b.Date()
+	return ay == by && am == bm && ad == bd
 }
 
 // parseStringJSONArray accepts a JSON array of strings; falls back to splitting

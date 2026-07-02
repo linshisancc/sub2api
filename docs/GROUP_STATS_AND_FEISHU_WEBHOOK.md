@@ -358,8 +358,8 @@ ticker := time.NewTicker(2 * time.Minute)
 | `scheduled_warmup_workday_only` | `true` / `false`，是否仅在工作日触发（默认 `true`） |
 | `scheduled_warmup_holidays` | JSON 数组 `["2026-05-01", ...]`，节假日清单 |
 | `scheduled_warmup_extra_workdays` | JSON 数组 `["2026-04-26", ...]`，补班日清单 |
-| `scheduled_warmup_platforms` | JSON 数组，参与 Warmup 的平台白名单（默认 `["anthropic","openai","gemini","antigravity"]`） |
-| `scheduled_warmup_last_run_date` | 字符串 `YYYY-MM-DD`，最近一次执行的本地日期，用于"今日已执行"幂等判断 |
+| `scheduled_warmup_platforms` | JSON 数组，参与 Warmup 的平台白名单（默认 `["anthropic","openai","gemini","antigravity","grok"]`） |
+| `scheduled_warmup_last_run_date` | 字符串 `YYYY-MM-DDTHH:mm`，最近一次执行的本地窗口键，用于"当前 5h 窗口已执行"幂等判断；兼容旧值 `YYYY-MM-DD` |
 
 ---
 
@@ -367,17 +367,18 @@ ticker := time.NewTicker(2 * time.Minute)
 
 ### 功能说明
 
-Anthropic / OpenAI / Gemini 等上游服务商对每个账号采用"首次请求时刻 + N 小时"的滚动窗口
+Anthropic / OpenAI / Gemini / Antigravity / Grok 等上游服务商对每个账号采用"首次请求时刻 + N 小时"的滚动窗口
 限流（Anthropic 5h / 7d 最典型）。如果在工作日早上 8 点之前没有任何请求，第一个用户
 请求会把当天的 5h 窗口"起点"卡到很难用的时间点（例如 10:30 第一个请求 → 一天里
 只能用 10:30–15:30 一个完整窗口，外加一段截断的下午窗口）。
 
 **定时账号 Warmup** 在工作日 08:00（可配置）由系统主动给每个可调度账号发起一条极小
-的请求（与「账号管理 → 测试连接」是同一条 SSE 链路，每次仅消耗个位数 token），
-把 5h 窗口起点钉在 08:00，确保一天能用满 08:00–13:00 与 13:00–18:00 两个完整 5h 窗口。
+的请求（与「账号管理 → 测试连接」是同一条 SSE 链路，每次仅消耗少量 token），
+把首个 5h 窗口起点钉在 08:00；之后每 5 小时自动触发下一轮窗口（例如 13:00、18:00），
+无需等待客户端真实请求。
 
-整次任务执行结束后通过飞书推送**一张**汇总卡片，列出全部账号的成功 / 失败明细。
-**不**对每个账号单独推送 — 一天只通知一次。
+每个窗口执行结束后通过飞书推送**一张**汇总卡片，列出全部账号的成功 / 失败明细。
+**不**对每个账号单独推送。
 
 ### 配置入口
 
@@ -386,12 +387,12 @@ Anthropic / OpenAI / Gemini 等上游服务商对每个账号采用"首次请求
 | 配置项 | 说明 | 默认值 |
 |-------|------|--------|
 | 启用 | 总开关 | 关闭 |
-| 触发时间（5 段 cron） | 标准 cron 表达式 | `0 8 * * *`（每天 08:00） |
+| 触发时间（5 段 cron） | 标准 cron 表达式，用于配置当天首个 5h 窗口锚点；后续窗口每 5 小时自动触发 | `0 8 * * *`（每天 08:00） |
 | 仅工作日触发 | 是否限定在工作日 | 开启 |
-| 参与平台 | 复选 Anthropic / OpenAI / Gemini / Antigravity | 全选 |
+| 参与平台 | 复选 Anthropic / OpenAI / Gemini / Antigravity / Grok | 全选 |
 | 节假日 | 每行一个 `YYYY-MM-DD`，这些日期跳过 Warmup | — |
 | 补班日 | 每行一个 `YYYY-MM-DD`，这些日期即使周末也触发 Warmup | — |
-| 立即触发一次 | 调试 / 补救按钮；可勾选"强制"绕过当日幂等 | — |
+| 立即触发一次 | 调试 / 补救按钮；可勾选"强制"绕过当前窗口幂等 | — |
 
 页面同时把 `feishu_webhook_notify_warmup`（飞书汇总卡片开关）镜像在「飞书 Webhook → 推送
 告警类型」卡片里，方便对照其他告警类型一起开关。
@@ -420,14 +421,14 @@ func (c *WorkdayCalendar) IsWorkday(t time.Time) bool {
 每分钟 ticker → 一轮判定：
 
 1. 读取 `scheduled_warmup_enabled`，关闭则返回。
-2. 解析 `scheduled_warmup_cron`，判断 `now` 是否处于"上次 tick → now"区间的触发点；若否，返回。
+2. 解析 `scheduled_warmup_cron`，以当天 cron 命中的首个时间为锚点推导 5h 窗口边界，判断 `now` 是否处于"上次 tick → now"区间的窗口边界；若否，返回。
 3. 若 `workday_only && !calendar.IsWorkday(now)`，返回。
-4. 读取 `scheduled_warmup_last_run_date`，若等于今天 `YYYY-MM-DD`，返回（幂等）。
+4. 读取 `scheduled_warmup_last_run_date`，若等于当前窗口键（如 `2026-05-21T13:00`），返回（幂等）。旧版 `YYYY-MM-DD` 值只视为当天首个窗口已执行。
 5. 申请 Redis 分布式锁（key=`scheduled_warmup:leader`，TTL=5 分钟，多副本部署下只允许一个副本执行）。
 6. 拉取所有 `enabled` 平台的 schedulable 账号（已排除限流中 / temp_unschedulable / expired）。
 7. 信号量 = 10 并发，对每个账号调用 `AccountTestService.RunTestBackground`（"hi" 探针，
    消耗 token 个位数，触发 5h 窗口）；记录每条 success / failed 结果。
-8. 写入 `scheduled_warmup_last_run_date = today`。
+8. 写入 `scheduled_warmup_last_run_date = 当前窗口键`。
 9. 若 `feishu_webhook_notify_warmup`，调用 `SendScheduledWarmupSummary` 发一次卡片。
 10. 释放分布式锁。
 
@@ -435,8 +436,8 @@ func (c *WorkdayCalendar) IsWorkday(t time.Time) bool {
 
 `POST /api/v1/admin/settings/scheduled-warmup/run-now`，请求体可选 `{"force": true}`：
 
-- 不带 `force`：当日已执行过会直接 400，避免重复浪费配额。
-- 带 `force=true`：绕过当日幂等，但仍走分布式锁与"hi" 探针逻辑。
+- 不带 `force`：当前窗口已执行过会直接 400，避免重复浪费配额。
+- 带 `force=true`：绕过当前窗口幂等，但仍走分布式锁与"hi" 探针逻辑。
 - 响应中包含每个失败账号的明细（accountID / name / platform / error），便于排错。
 
 ### 飞书卡片样例

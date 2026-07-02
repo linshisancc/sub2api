@@ -47,7 +47,7 @@
                   class="h-3.5 w-3.5 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
                   @change="toggleWarmupPlatform(p)"
                 />
-                <span>{{ p }}</span>
+                <span>{{ warmupPlatformLabel(p) }}</span>
               </label>
             </div>
             <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">未勾选的平台不会被 Warmup。</p>
@@ -151,6 +151,23 @@ const warmupPlatformOptions = [
   "antigravity",
   "grok",
 ];
+
+const warmupPlatformLabel = (platform: string): string => {
+  switch (platform) {
+    case "anthropic":
+      return "Anthropic";
+    case "openai":
+      return "OpenAI";
+    case "gemini":
+      return "Gemini";
+    case "antigravity":
+      return "Antigravity";
+    case "grok":
+      return "Grok";
+    default:
+      return platform;
+  }
+};
 
 const warmupRunForce = ref(false);
 const warmupRunLoading = ref(false);

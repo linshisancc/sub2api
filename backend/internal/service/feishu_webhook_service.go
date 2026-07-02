@@ -174,7 +174,7 @@ func buildWarmupCardBody(summary *WarmupSummary) string {
 		fmt.Fprintf(&b, "触发来源：%s\n", summary.Source)
 	}
 	if len(summary.Platforms) > 0 {
-		fmt.Fprintf(&b, "覆盖平台：%s\n", strings.Join(summary.Platforms, ", "))
+		fmt.Fprintf(&b, "覆盖平台：%s\n", formatWarmupPlatforms(summary.Platforms))
 	}
 	fmt.Fprintf(&b, "共处理：%d 个账号\n", summary.Total)
 	fmt.Fprintf(&b, "耗时：%d ms\n", summary.DurationMs)
@@ -198,7 +198,7 @@ func buildWarmupCardBody(summary *WarmupSummary) string {
 				fmt.Fprintf(&b, "  • + %d more …\n", len(summary.Failures)-maxFailLines)
 				break
 			}
-			fmt.Fprintf(&b, "  • %s (%s) — %s\n", f.Name, f.Platform, truncateForCard(f.Error, 120))
+			fmt.Fprintf(&b, "  • %s (%s) — %s\n", f.Name, warmupPlatformDisplayName(f.Platform), truncateForCard(f.Error, 120))
 		}
 	}
 	return b.String()
@@ -217,19 +217,72 @@ func formatPlatformCounts(counts map[string]int) string {
 	for k := range counts {
 		keys = append(keys, k)
 	}
-	// stable order: alphabetical
+	// Stable order: known platform order first, unknown extension platforms alphabetically.
 	for i := 0; i < len(keys); i++ {
 		for j := i + 1; j < len(keys); j++ {
-			if keys[j] < keys[i] {
+			if warmupPlatformLess(keys[j], keys[i]) {
 				keys[i], keys[j] = keys[j], keys[i]
 			}
 		}
 	}
 	parts := make([]string, 0, len(keys))
 	for _, k := range keys {
-		parts = append(parts, fmt.Sprintf("%s: %d", k, counts[k]))
+		parts = append(parts, fmt.Sprintf("%s: %d", warmupPlatformDisplayName(k), counts[k]))
 	}
 	return strings.Join(parts, ", ")
+}
+
+func formatWarmupPlatforms(platforms []string) string {
+	if len(platforms) == 0 {
+		return ""
+	}
+	labels := make([]string, 0, len(platforms))
+	for _, platform := range platforms {
+		platform = strings.TrimSpace(platform)
+		if platform != "" {
+			labels = append(labels, warmupPlatformDisplayName(platform))
+		}
+	}
+	return strings.Join(labels, ", ")
+}
+
+func warmupPlatformDisplayName(platform string) string {
+	switch strings.TrimSpace(strings.ToLower(platform)) {
+	case PlatformAnthropic:
+		return "Anthropic"
+	case PlatformOpenAI:
+		return "OpenAI"
+	case PlatformGemini:
+		return "Gemini"
+	case PlatformAntigravity:
+		return "Antigravity"
+	case PlatformGrok:
+		return "Grok"
+	default:
+		return platform
+	}
+}
+
+func warmupPlatformLess(a, b string) bool {
+	ai, aKnown := warmupPlatformOrder(a)
+	bi, bKnown := warmupPlatformOrder(b)
+	if aKnown && bKnown {
+		return ai < bi
+	}
+	if aKnown != bKnown {
+		return aKnown
+	}
+	return a < b
+}
+
+func warmupPlatformOrder(platform string) (int, bool) {
+	normalized := strings.TrimSpace(strings.ToLower(platform))
+	for i, known := range AllowedQuotaPlatforms {
+		if normalized == known {
+			return i, true
+		}
+	}
+	return 0, false
 }
 
 func truncateForCard(s string, n int) string {
@@ -401,7 +454,7 @@ type feishuCardText struct {
 }
 
 type feishuCardElement struct {
-	Tag  string         `json:"tag"`
+	Tag  string          `json:"tag"`
 	Text *feishuCardText `json:"text,omitempty"`
 }
 

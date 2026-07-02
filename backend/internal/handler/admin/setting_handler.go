@@ -94,7 +94,7 @@ func (h *SettingHandler) SetAccountWarmupService(svc *service.AccountWarmupServi
 }
 
 // RunScheduledWarmupNow triggers an immediate warmup run, bypassing the cron
-// schedule and the workday-only guard. The "already executed today"
+// schedule and the workday-only guard. The "already executed for this window"
 // idempotency guard is still respected unless `force=true` is in the body.
 // POST /api/v1/admin/settings/scheduled-warmup/run-now
 func (h *SettingHandler) RunScheduledWarmupNow(c *gin.Context) {
@@ -3980,6 +3980,7 @@ func validateScheduledWarmupRequest(req *UpdateSettingsRequest) error {
 	}
 	return nil
 }
+
 // equalNullableFloat compares two *float64 values treating nil as a distinct case.
 func equalNullableFloat(a, b *float64) bool {
 	if a == nil && b == nil {
