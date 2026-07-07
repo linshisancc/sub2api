@@ -446,6 +446,9 @@ func (s *warmupAccountStub) ResetQuotaUsed(context.Context, int64) error { panic
 func (s *warmupAccountStub) ListShadowsByParent(context.Context, int64) ([]*Account, error) {
 	panic("unexpected")
 }
+func (s *warmupAccountStub) ListAllWithFilters(context.Context, string, string, string, string, int64, string) ([]Account, error) {
+	panic("unexpected")
+}
 
 var _ AccountRepository = (*warmupAccountStub)(nil)
 
