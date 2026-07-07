@@ -139,7 +139,7 @@ func TestCronCrossed_InvalidSpec(t *testing.T) {
 	}
 }
 
-func TestWarmupWindowCrossed_IncludesFollowUpFiveHourWindows(t *testing.T) {
+func TestWarmupWindowCrossed_IncludesOnlyWindowsWithinCoverageDuration(t *testing.T) {
 	loc := time.UTC
 	day := func(h, m int) time.Time { return time.Date(2026, 5, 21, h, m, 0, 0, loc) }
 
@@ -152,7 +152,8 @@ func TestWarmupWindowCrossed_IncludesFollowUpFiveHourWindows(t *testing.T) {
 	}{
 		{"crosses first configured window", day(7, 59), day(8, 0), day(8, 0), true},
 		{"crosses second 5h window", day(12, 59), day(13, 0), day(13, 0), true},
-		{"crosses third 5h window", day(17, 59), day(18, 0), day(18, 0), true},
+		{"skips third 5h window beyond 8h coverage", day(17, 59), day(18, 0), time.Time{}, false},
+		{"skips late same-day 5h window beyond 8h coverage", day(22, 59), day(23, 0), time.Time{}, false},
 		{"between windows", day(13, 1), day(13, 2), time.Time{}, false},
 		{"before configured anchor", day(7, 0), day(7, 59), time.Time{}, false},
 	}
@@ -169,7 +170,7 @@ func TestWarmupWindowCrossed_IncludesFollowUpFiveHourWindows(t *testing.T) {
 	}
 }
 
-func TestCurrentWarmupWindowStart_TracksLatestWindowToday(t *testing.T) {
+func TestCurrentWarmupWindowStart_TracksLatestWindowWithinCoverageDuration(t *testing.T) {
 	loc := time.UTC
 	at := func(h, m int) time.Time { return time.Date(2026, 5, 21, h, m, 0, 0, loc) }
 
@@ -183,7 +184,8 @@ func TestCurrentWarmupWindowStart_TracksLatestWindowToday(t *testing.T) {
 		{now: at(12, 59), wantStart: at(8, 0), wantOK: true},
 		{now: at(13, 0), wantStart: at(13, 0), wantOK: true},
 		{now: at(17, 59), wantStart: at(13, 0), wantOK: true},
-		{now: at(18, 0), wantStart: at(18, 0), wantOK: true},
+		{now: at(18, 0), wantStart: at(13, 0), wantOK: true},
+		{now: at(23, 0), wantStart: at(13, 0), wantOK: true},
 	}
 	for _, tc := range tests {
 		got, _, ok := currentWarmupWindowStart("0 8 * * *", tc.now)

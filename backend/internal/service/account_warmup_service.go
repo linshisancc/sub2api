@@ -19,6 +19,7 @@ const (
 	accountWarmupDefaultMaxWorkers = 10
 	accountWarmupDefaultCron       = "0 8 * * *"
 	accountWarmupWindowInterval    = 5 * time.Hour
+	accountWarmupCoverageDuration  = 8 * time.Hour
 	accountWarmupTickInterval      = 1 * time.Minute
 	accountWarmupLeaderLockKey     = "scheduled_warmup:leader"
 	accountWarmupLeaderLockTTL     = 15 * time.Minute
@@ -35,7 +36,7 @@ return 0
 
 // AccountWarmupService runs warmups against all schedulable accounts so each
 // upstream 5-hour rate-limit window starts ticking at a known time (typically
-// 08:00, 13:00, 18:00 on workdays). It posts one summary card per run to Feishu.
+// 08:00 and 13:00 on workdays). It posts one summary card per run to Feishu.
 type AccountWarmupService struct {
 	settingRepo    SettingRepository
 	accountRepo    AccountRepository
@@ -518,9 +519,10 @@ func currentWarmupWindowStart(spec string, now time.Time) (time.Time, time.Time,
 	}
 
 	windowStart := first
+	coverageEnd := first.Add(accountWarmupCoverageDuration)
 	for {
 		next := windowStart.Add(accountWarmupWindowInterval)
-		if next.After(now) || !sameLocalDate(next, first) {
+		if next.After(now) || !sameLocalDate(next, first) || !next.Before(coverageEnd) {
 			return windowStart, first, true
 		}
 		windowStart = next
