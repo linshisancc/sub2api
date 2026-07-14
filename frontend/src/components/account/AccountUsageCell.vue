@@ -372,6 +372,13 @@
             <span class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800" :title="t('usage.accountBilled')">
               A ${{ formatWindowCost(grokLocalUsage) }}
             </span>
+            <span
+              v-if="grokLocalUsage.user_cost != null"
+              class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800"
+              :title="t('usage.userBilled')"
+            >
+              U ${{ formatWindowUserCost(grokLocalUsage) }}
+            </span>
           </div>
         </div>
         <UsageProgressBar
@@ -379,6 +386,7 @@
           :label="t('admin.accounts.usageWindow.grokRequests')"
           :utilization="grokRequestQuotaBar.utilization"
           :resets-at="grokRequestQuotaBar.resetsAt"
+          :remaining-capacity="true"
           color="indigo"
         />
         <UsageProgressBar
@@ -386,6 +394,7 @@
           :label="t('admin.accounts.usageWindow.grokTokens')"
           :utilization="grokTokenQuotaBar.utilization"
           :resets-at="grokTokenQuotaBar.resetsAt"
+          :remaining-capacity="true"
           color="emerald"
         />
         <div v-if="grokRetryAfterLabel" class="text-[10px] text-amber-600 dark:text-amber-400">
@@ -1034,9 +1043,9 @@ interface GrokQuotaBarInfo {
 
 const makeGrokQuotaBar = (quota?: { limit?: number | null; remaining?: number | null; reset_at?: string | null } | null): GrokQuotaBarInfo | null => {
   if (!quota || quota.limit == null || quota.remaining == null || quota.limit <= 0) return null
-  const used = Math.max(0, quota.limit - quota.remaining)
+  const remaining = Math.min(quota.limit, Math.max(0, quota.remaining))
   return {
-    utilization: Math.min(100, (used / quota.limit) * 100),
+    utilization: (remaining / quota.limit) * 100,
     resetsAt: quota.reset_at || null
   }
 }
@@ -1092,6 +1101,7 @@ const grokRetryAfterLabel = computed(() => {
 const formatWindowRequests = (stats: WindowStats) => formatCompactNumber(stats.requests, { allowBillions: false })
 const formatWindowTokens = (stats: WindowStats) => formatCompactNumber(stats.tokens)
 const formatWindowCost = (stats: WindowStats) => stats.cost.toFixed(2)
+const formatWindowUserCost = (stats: WindowStats) => (stats.user_cost ?? 0).toFixed(2)
 
 // 账户类型显示标签
 const antigravityTierLabel = computed(() => {
