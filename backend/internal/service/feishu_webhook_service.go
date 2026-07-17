@@ -50,6 +50,7 @@ func (s *FeishuWebhookService) Send(ctx context.Context, alertType, identifier, 
 		SettingKeyFeishuWebhookNotifyAccount,
 		SettingKeyFeishuWebhookAtAll,
 		SettingKeyFeishuWebhookAtUserIDs,
+		SettingKeyFeishuLoginBruteforceAutobanEnabled,
 	}
 	settings, err := s.settingRepo.GetMultiple(ctx, keys)
 	if err != nil {
@@ -73,6 +74,10 @@ func (s *FeishuWebhookService) Send(ctx context.Context, alertType, identifier, 
 		}
 	case "account_quota", "account_rate_limited", "account_rate_limit_recovered":
 		if settings[SettingKeyFeishuWebhookNotifyAccount] != "true" {
+			return
+		}
+	case loginBruteforceAlertType:
+		if settings[SettingKeyFeishuLoginBruteforceAutobanEnabled] == "false" {
 			return
 		}
 	}
@@ -408,6 +413,8 @@ func feishuAlertStyleFor(alertType string) feishuAlertStyle {
 		return feishuAlertStyle{emoji: "⏳", template: "red"}
 	case "account_rate_limit_recovered":
 		return feishuAlertStyle{emoji: "✅", template: "green"}
+	case loginBruteforceAlertType:
+		return feishuAlertStyle{emoji: "🚫", template: "red"}
 	default:
 		return feishuAlertStyle{emoji: "🔔", template: "blue"}
 	}

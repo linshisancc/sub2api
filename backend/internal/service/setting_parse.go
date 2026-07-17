@@ -855,6 +855,24 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 	}
 	result.FeishuWebhookNotifyWarmup = settings[SettingKeyFeishuWebhookNotifyWarmup] == "true"
 
+	// Login Bruteforce Auto-Ban (default enabled; independent of feishu_webhook_enabled)
+	result.FeishuLoginBruteforceAutobanEnabled = settings[SettingKeyFeishuLoginBruteforceAutobanEnabled] != "false"
+	if v, err := strconv.Atoi(settings[SettingKeyLoginBruteforceMaxFailures]); err == nil && v > 0 {
+		result.LoginBruteforceMaxFailures = v
+	} else {
+		result.LoginBruteforceMaxFailures = loginBruteforceDefaultMaxFailures
+	}
+	if v, err := strconv.Atoi(settings[SettingKeyLoginBruteforceWindowMinutes]); err == nil && v > 0 {
+		result.LoginBruteforceWindowMinutes = v
+	} else {
+		result.LoginBruteforceWindowMinutes = loginBruteforceDefaultWindowMinutes
+	}
+	if v, err := strconv.Atoi(settings[SettingKeyLoginBruteforceBanMinutes]); err == nil && v > 0 {
+		result.LoginBruteforceBanMinutes = v
+	} else {
+		result.LoginBruteforceBanMinutes = loginBruteforceDefaultBanMinutes
+	}
+
 	// Scheduled Account Warmup
 	result.ScheduledWarmupEnabled = settings[SettingKeyScheduledWarmupEnabled] == "true"
 	result.ScheduledWarmupCron = strings.TrimSpace(settings[SettingKeyScheduledWarmupCron])

@@ -272,6 +272,12 @@ type SystemSettings struct {
 	FeishuWebhookAtUserIDs       string
 	FeishuWebhookNotifyWarmup    bool
 
+	// Login Bruteforce Auto-Ban
+	FeishuLoginBruteforceAutobanEnabled bool
+	LoginBruteforceMaxFailures          int
+	LoginBruteforceWindowMinutes        int
+	LoginBruteforceBanMinutes           int
+
 	// Scheduled Account Warmup
 	ScheduledWarmupEnabled       bool
 	ScheduledWarmupCron          string

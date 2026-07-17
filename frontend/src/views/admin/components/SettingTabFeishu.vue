@@ -98,6 +98,63 @@
         </div>
       </div>
     </div>
+
+    <!-- 登录安全 -->
+    <div class="card">
+      <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
+        <h3 class="text-base font-medium text-gray-900 dark:text-white">登录安全</h3>
+        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+          同一 IP 在时间窗口内多次登录失败时自动封禁，并推送飞书告警（若已启用 Webhook）。独立于上方飞书总开关，即使未配置 Webhook，封禁仍会生效，只是不会推送通知。
+        </p>
+      </div>
+      <div class="px-6 py-6 space-y-4">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm font-medium text-gray-700 dark:text-gray-300">启用登录爆破自动封禁</p>
+            <p class="text-xs text-gray-500 dark:text-gray-400">默认开启，可在下方调整触发阈值与封禁时长。</p>
+          </div>
+          <Toggle v-model="form.feishu_login_bruteforce_autoban_enabled" />
+        </div>
+        <div v-if="form.feishu_login_bruteforce_autoban_enabled" class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div>
+            <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">最大失败次数</label>
+            <input
+              v-model.number="form.login_bruteforce_max_failures"
+              type="number"
+              min="1"
+              max="1000"
+              class="input"
+              placeholder="10"
+            />
+          </div>
+          <div>
+            <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">统计窗口（分钟）</label>
+            <input
+              v-model.number="form.login_bruteforce_window_minutes"
+              type="number"
+              min="1"
+              max="1440"
+              class="input"
+              placeholder="5"
+            />
+          </div>
+          <div>
+            <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">封禁时长（分钟）</label>
+            <input
+              v-model.number="form.login_bruteforce_ban_minutes"
+              type="number"
+              min="1"
+              max="10080"
+              class="input"
+              placeholder="60"
+            />
+          </div>
+        </div>
+        <p v-if="form.feishu_login_bruteforce_autoban_enabled" class="text-xs text-gray-500 dark:text-gray-400">
+          同一 IP 在统计窗口内登录失败达到最大失败次数即被封禁，封禁期间该 IP 无法访问整站接口。
+        </p>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -114,6 +171,10 @@ interface FeishuForm {
   feishu_webhook_notify_account: boolean;
   feishu_webhook_notify_ops: boolean;
   feishu_webhook_notify_warmup: boolean;
+  feishu_login_bruteforce_autoban_enabled: boolean;
+  login_bruteforce_max_failures: number;
+  login_bruteforce_window_minutes: number;
+  login_bruteforce_ban_minutes: number;
 }
 
 defineProps<{

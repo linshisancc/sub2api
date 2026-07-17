@@ -18,6 +18,7 @@ func RegisterAuthRoutes(
 	h *handler.Handlers,
 	jwtAuth servermiddleware.JWTAuthMiddleware,
 	auditLog servermiddleware.AuditLogMiddleware,
+	loginBruteforceTracker servermiddleware.LoginBruteforceTrackerMiddleware,
 	redisClient *redis.Client,
 	settingService *service.SettingService,
 ) {
@@ -36,7 +37,7 @@ func RegisterAuthRoutes(
 		}), h.Auth.Register)
 		auth.POST("/login", rateLimiter.LimitWithOptions("auth-login", 20, time.Minute, middleware.RateLimitOptions{
 			FailureMode: middleware.RateLimitFailClose,
-		}), h.Auth.Login)
+		}), gin.HandlerFunc(loginBruteforceTracker), h.Auth.Login)
 		auth.POST("/login/2fa", rateLimiter.LimitWithOptions("auth-login-2fa", 20, time.Minute, middleware.RateLimitOptions{
 			FailureMode: middleware.RateLimitFailClose,
 		}), h.Auth.Login2FA)

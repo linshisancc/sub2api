@@ -669,6 +669,12 @@ export interface SystemSettings {
   feishu_webhook_at_user_ids: string;
   feishu_webhook_notify_warmup: boolean;
 
+  // Login Bruteforce Auto-Ban
+  feishu_login_bruteforce_autoban_enabled: boolean;
+  login_bruteforce_max_failures: number;
+  login_bruteforce_window_minutes: number;
+  login_bruteforce_ban_minutes: number;
+
   // Scheduled Account Warmup
   scheduled_warmup_enabled: boolean;
   scheduled_warmup_cron: string;
@@ -954,6 +960,12 @@ export interface UpdateSettingsRequest {
   feishu_webhook_at_all?: boolean;
   feishu_webhook_at_user_ids?: string;
   feishu_webhook_notify_warmup?: boolean;
+
+  // Login Bruteforce Auto-Ban
+  feishu_login_bruteforce_autoban_enabled?: boolean;
+  login_bruteforce_max_failures?: number;
+  login_bruteforce_window_minutes?: number;
+  login_bruteforce_ban_minutes?: number;
 
   // Scheduled Account Warmup
   scheduled_warmup_enabled?: boolean;

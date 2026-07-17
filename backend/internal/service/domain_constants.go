@@ -525,6 +525,12 @@ const (
 	SettingKeyFeishuWebhookAtUserIDs       = "feishu_webhook_at_user_ids"      // 推送时 @指定成员（open_id 列表）
 	SettingKeyFeishuWebhookNotifyWarmup    = "feishu_webhook_notify_warmup"    // 推送账号 Warmup 汇总
 
+	// Login Bruteforce Auto-Ban
+	SettingKeyFeishuLoginBruteforceAutobanEnabled = "feishu_login_bruteforce_autoban_enabled" // 总开关，默认启用
+	SettingKeyLoginBruteforceMaxFailures          = "login_bruteforce_max_failures"           // 时间窗口内最大失败次数，默认 10
+	SettingKeyLoginBruteforceWindowMinutes        = "login_bruteforce_window_minutes"         // 统计窗口（分钟），默认 5
+	SettingKeyLoginBruteforceBanMinutes           = "login_bruteforce_ban_minutes"            // 封禁时长（分钟），默认 60
+
 	// Scheduled Account Warmup
 	SettingKeyScheduledWarmupEnabled       = "scheduled_warmup_enabled"        // 总开关
 	SettingKeyScheduledWarmupCron          = "scheduled_warmup_cron"           // 5 段 cron，例如 "0 8 * * *"

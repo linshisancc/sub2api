@@ -421,6 +421,18 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	}
 	updates[SettingKeyFeishuWebhookNotifyWarmup] = strconv.FormatBool(settings.FeishuWebhookNotifyWarmup)
 
+	// Login Bruteforce Auto-Ban
+	updates[SettingKeyFeishuLoginBruteforceAutobanEnabled] = strconv.FormatBool(settings.FeishuLoginBruteforceAutobanEnabled)
+	if settings.LoginBruteforceMaxFailures > 0 {
+		updates[SettingKeyLoginBruteforceMaxFailures] = strconv.Itoa(settings.LoginBruteforceMaxFailures)
+	}
+	if settings.LoginBruteforceWindowMinutes > 0 {
+		updates[SettingKeyLoginBruteforceWindowMinutes] = strconv.Itoa(settings.LoginBruteforceWindowMinutes)
+	}
+	if settings.LoginBruteforceBanMinutes > 0 {
+		updates[SettingKeyLoginBruteforceBanMinutes] = strconv.Itoa(settings.LoginBruteforceBanMinutes)
+	}
+
 	// Scheduled Account Warmup
 	updates[SettingKeyScheduledWarmupEnabled] = strconv.FormatBool(settings.ScheduledWarmupEnabled)
 	if cron := strings.TrimSpace(settings.ScheduledWarmupCron); cron != "" {

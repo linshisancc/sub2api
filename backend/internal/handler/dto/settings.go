@@ -286,6 +286,12 @@ type SystemSettings struct {
 	FeishuWebhookAtUserIDs       string `json:"feishu_webhook_at_user_ids"`
 	FeishuWebhookNotifyWarmup    bool   `json:"feishu_webhook_notify_warmup"`
 
+	// Login Bruteforce Auto-Ban
+	FeishuLoginBruteforceAutobanEnabled bool `json:"feishu_login_bruteforce_autoban_enabled"`
+	LoginBruteforceMaxFailures          int  `json:"login_bruteforce_max_failures"`
+	LoginBruteforceWindowMinutes        int  `json:"login_bruteforce_window_minutes"`
+	LoginBruteforceBanMinutes           int  `json:"login_bruteforce_ban_minutes"`
+
 	// Scheduled Account Warmup
 	ScheduledWarmupEnabled       bool     `json:"scheduled_warmup_enabled"`
 	ScheduledWarmupCron          string   `json:"scheduled_warmup_cron"`

@@ -282,6 +282,12 @@ type UpdateSettingsRequest struct {
 	FeishuWebhookAtUserIDs       *string `json:"feishu_webhook_at_user_ids"`
 	FeishuWebhookNotifyWarmup    *bool   `json:"feishu_webhook_notify_warmup"`
 
+	// Login Bruteforce Auto-Ban
+	FeishuLoginBruteforceAutobanEnabled *bool `json:"feishu_login_bruteforce_autoban_enabled"`
+	LoginBruteforceMaxFailures          *int  `json:"login_bruteforce_max_failures"`
+	LoginBruteforceWindowMinutes        *int  `json:"login_bruteforce_window_minutes"`
+	LoginBruteforceBanMinutes           *int  `json:"login_bruteforce_ban_minutes"`
+
 	// Scheduled Account Warmup
 	ScheduledWarmupEnabled       *bool     `json:"scheduled_warmup_enabled"`
 	ScheduledWarmupCron          *string   `json:"scheduled_warmup_cron"`
@@ -1590,6 +1596,30 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 				return *req.FeishuWebhookNotifyWarmup
 			}
 			return previousSettings.FeishuWebhookNotifyWarmup
+		}(),
+		FeishuLoginBruteforceAutobanEnabled: func() bool {
+			if req.FeishuLoginBruteforceAutobanEnabled != nil {
+				return *req.FeishuLoginBruteforceAutobanEnabled
+			}
+			return previousSettings.FeishuLoginBruteforceAutobanEnabled
+		}(),
+		LoginBruteforceMaxFailures: func() int {
+			if req.LoginBruteforceMaxFailures != nil {
+				return *req.LoginBruteforceMaxFailures
+			}
+			return previousSettings.LoginBruteforceMaxFailures
+		}(),
+		LoginBruteforceWindowMinutes: func() int {
+			if req.LoginBruteforceWindowMinutes != nil {
+				return *req.LoginBruteforceWindowMinutes
+			}
+			return previousSettings.LoginBruteforceWindowMinutes
+		}(),
+		LoginBruteforceBanMinutes: func() int {
+			if req.LoginBruteforceBanMinutes != nil {
+				return *req.LoginBruteforceBanMinutes
+			}
+			return previousSettings.LoginBruteforceBanMinutes
 		}(),
 		ScheduledWarmupEnabled: func() bool {
 			if req.ScheduledWarmupEnabled != nil {

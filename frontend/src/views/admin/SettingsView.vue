@@ -8192,6 +8192,10 @@ type SettingsForm = Omit<
   feishu_webhook_at_all: boolean;
   feishu_webhook_at_user_ids: string;
   feishu_webhook_notify_warmup: boolean;
+  feishu_login_bruteforce_autoban_enabled: boolean;
+  login_bruteforce_max_failures: number;
+  login_bruteforce_window_minutes: number;
+  login_bruteforce_ban_minutes: number;
   scheduled_warmup_enabled: boolean;
   scheduled_warmup_cron: string;
   scheduled_warmup_workday_only: boolean;
@@ -8457,6 +8461,10 @@ const form = reactive<SettingsForm>({
   feishu_webhook_at_all: false,
   feishu_webhook_at_user_ids: "",
   feishu_webhook_notify_warmup: false,
+  feishu_login_bruteforce_autoban_enabled: true,
+  login_bruteforce_max_failures: 10,
+  login_bruteforce_window_minutes: 5,
+  login_bruteforce_ban_minutes: 60,
   // Scheduled Account Warmup
   scheduled_warmup_enabled: false,
   scheduled_warmup_cron: "0 8 * * *",
@@ -9869,6 +9877,10 @@ async function saveSettings() {
       feishu_webhook_at_all: form.feishu_webhook_at_all,
       feishu_webhook_at_user_ids: form.feishu_webhook_at_user_ids,
       feishu_webhook_notify_warmup: form.feishu_webhook_notify_warmup,
+      feishu_login_bruteforce_autoban_enabled: form.feishu_login_bruteforce_autoban_enabled,
+      login_bruteforce_max_failures: form.login_bruteforce_max_failures,
+      login_bruteforce_window_minutes: form.login_bruteforce_window_minutes,
+      login_bruteforce_ban_minutes: form.login_bruteforce_ban_minutes,
       // Scheduled Account Warmup
       scheduled_warmup_enabled: form.scheduled_warmup_enabled,
       scheduled_warmup_cron: form.scheduled_warmup_cron,
