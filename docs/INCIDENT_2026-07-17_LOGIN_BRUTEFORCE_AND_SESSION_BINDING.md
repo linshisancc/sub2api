@@ -14,7 +14,7 @@
 - 已验证纯 UFW INPUT 规则无法拦截该 Docker DNAT/FORWARD 流量。
 - 已安装并启动宿主机 Caddy `v2.11.4`，接管 80/443 并使用 Cloudflare Origin Certificate。
 - 本地源码已同步上游 `v0.1.159`，包含提交 `7c48f9a85` 的安全客户端 IP统一修复。
-- 本地自动封禁功能已适配上游的 `middleware.SecurityClientIP()`，相关测试通过；功能仍未提交、未部署生产。
+- 自动封禁功能已适配上游的 `middleware.SecurityClientIP()`，相关测试通过并已提交；私有镜像 `linshisancc/sub2api:v1.0.23` 已推送，尚未部署生产。
 - 已确认 `proxy.linshisan.cc` 必须保持灰云，因为 VPN 客户端使用该域名的 `8443` 端口。
 - sub2api 已改为仅映射 `127.0.0.1:8080->8080/tcp`，不再公开 Docker HTTP 端口。
 - UFW 的 80/443 已仅允许 Cloudflare 官方 IPv4/IPv6 网段，Cloudflare 已切换 Full (strict)。
