@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -867,7 +868,7 @@ func (s *GeminiMessagesCompatService) Forward(ctx context.Context, c *gin.Contex
 		}
 
 		// 错误策略优先：匹配则跳过重试直接处理。
-		if matched, rebuilt := s.checkErrorPolicyInLoop(ctx, account, resp); matched {
+		if matched, rebuilt := s.checkErrorPolicyInLoop(ctx, account, resp, mappedModel); matched {
 			resp = rebuilt
 			break
 		} else {
@@ -937,7 +938,8 @@ func (s *GeminiMessagesCompatService) Forward(ctx context.Context, c *gin.Contex
 		respBody := s.readUpstreamErrorBody(resp)
 		// 统一错误策略：自定义错误码 + 临时不可调度
 		if s.rateLimitService != nil {
-			switch s.rateLimitService.CheckErrorPolicy(ctx, account, resp.StatusCode, respBody) {
+			policy := s.rateLimitService.CheckErrorPolicy(ctx, account, resp.StatusCode, respBody, mappedModel)
+			switch policy {
 			case ErrorPolicySkipped:
 				upstreamReqID := resp.Header.Get(requestIDHeader)
 				if upstreamReqID == "" {
@@ -945,7 +947,9 @@ func (s *GeminiMessagesCompatService) Forward(ctx context.Context, c *gin.Contex
 				}
 				return nil, s.writeGeminiMappedError(c, account, http.StatusInternalServerError, upstreamReqID, respBody)
 			case ErrorPolicyMatched, ErrorPolicyTempUnscheduled:
-				s.handleGeminiUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody)
+				if policy == ErrorPolicyMatched {
+					s.handleGeminiUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody)
+				}
 				upstreamReqID := resp.Header.Get(requestIDHeader)
 				if upstreamReqID == "" {
 					upstreamReqID = resp.Header.Get("x-goog-request-id")
@@ -1065,7 +1069,7 @@ func (s *GeminiMessagesCompatService) Forward(ctx context.Context, c *gin.Contex
 				return nil, s.writeClaudeError(c, http.StatusBadGateway, "upstream_error", "Failed to read upstream stream")
 			}
 			collectedBytes, _ := json.Marshal(collected)
-			claudeResp, usageObj2 := convertGeminiToClaudeMessage(collected, originalModel, collectedBytes)
+			claudeResp, usageObj2 := convertGeminiToClaudeMessage(collected, originalModel, collectedBytes, false)
 			c.JSON(http.StatusOK, claudeResp)
 			usage = usageObj2
 			if usageObj != nil && (usageObj.InputTokens > 0 || usageObj.OutputTokens > 0) {
@@ -1336,7 +1340,7 @@ func (s *GeminiMessagesCompatService) ForwardNative(ctx context.Context, c *gin.
 		}
 
 		// 错误策略优先：匹配则跳过重试直接处理。
-		if matched, rebuilt := s.checkErrorPolicyInLoop(ctx, account, resp); matched {
+		if matched, rebuilt := s.checkErrorPolicyInLoop(ctx, account, resp, mappedModel); matched {
 			resp = rebuilt
 			break
 		} else {
@@ -1445,7 +1449,8 @@ func (s *GeminiMessagesCompatService) ForwardNative(ctx context.Context, c *gin.
 
 		// 统一错误策略：自定义错误码 + 临时不可调度
 		if s.rateLimitService != nil {
-			switch s.rateLimitService.CheckErrorPolicy(ctx, account, resp.StatusCode, respBody) {
+			policy := s.rateLimitService.CheckErrorPolicy(ctx, account, resp.StatusCode, respBody, mappedModel)
+			switch policy {
 			case ErrorPolicySkipped:
 				respBody = unwrapIfNeeded(isOAuth, respBody)
 				contentType := resp.Header.Get("Content-Type")
@@ -1456,7 +1461,9 @@ func (s *GeminiMessagesCompatService) ForwardNative(ctx context.Context, c *gin.
 				c.Data(http.StatusInternalServerError, contentType, respBody)
 				return nil, fmt.Errorf("gemini upstream error: %d (skipped by error policy)", resp.StatusCode)
 			case ErrorPolicyMatched, ErrorPolicyTempUnscheduled:
-				s.handleGeminiUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody)
+				if policy == ErrorPolicyMatched {
+					s.handleGeminiUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody)
+				}
 				evBody := unwrapIfNeeded(isOAuth, respBody)
 				upstreamMsg := strings.TrimSpace(extractUpstreamErrorMessage(evBody))
 				upstreamMsg = sanitizeUpstreamErrorMessage(upstreamMsg)
@@ -1631,7 +1638,7 @@ func (s *GeminiMessagesCompatService) ForwardNative(ctx context.Context, c *gin.
 // 返回 true 表示策略已匹配（调用者应 break），resp 已重建可直接使用。
 // 返回 false 表示 ErrorPolicyNone，resp 已重建，调用者继续走重试逻辑。
 func (s *GeminiMessagesCompatService) checkErrorPolicyInLoop(
-	ctx context.Context, account *Account, resp *http.Response,
+	ctx context.Context, account *Account, resp *http.Response, mappedModel string,
 ) (matched bool, rebuilt *http.Response) {
 	if resp.StatusCode < 400 || s.rateLimitService == nil {
 		return false, resp
@@ -1643,7 +1650,7 @@ func (s *GeminiMessagesCompatService) checkErrorPolicyInLoop(
 		Header:     resp.Header.Clone(),
 		Body:       io.NopCloser(bytes.NewReader(body)),
 	}
-	policy := s.rateLimitService.CheckErrorPolicy(ctx, account, resp.StatusCode, body)
+	policy := s.rateLimitService.CheckErrorPolicy(ctx, account, resp.StatusCode, body, mappedModel)
 	return policy != ErrorPolicyNone, rebuilt
 }
 
@@ -1959,7 +1966,7 @@ func (s *GeminiMessagesCompatService) handleNonStreamingResponse(c *gin.Context,
 		return nil, s.writeClaudeError(c, http.StatusBadGateway, "upstream_error", "Failed to parse upstream response")
 	}
 
-	claudeResp, usage := convertGeminiToClaudeMessage(geminiResp, originalModel, unwrappedBody)
+	claudeResp, usage := convertGeminiToClaudeMessage(geminiResp, originalModel, unwrappedBody, false)
 	c.JSON(http.StatusOK, claudeResp)
 
 	return usage, nil
@@ -2711,7 +2718,7 @@ func unwrapGeminiResponse(raw []byte) ([]byte, error) {
 	return raw, nil
 }
 
-func convertGeminiToClaudeMessage(geminiResp map[string]any, originalModel string, rawData []byte) (map[string]any, *ClaudeUsage) {
+func convertGeminiToClaudeMessage(geminiResp map[string]any, originalModel string, rawData []byte, includeInlineData bool) (map[string]any, *ClaudeUsage) {
 	usage := extractGeminiUsage(rawData)
 	if usage == nil {
 		usage = &ClaudeUsage{}
@@ -2733,6 +2740,16 @@ func convertGeminiToClaudeMessage(geminiResp map[string]any, originalModel strin
 								"type": "text",
 								"text": text,
 							})
+						}
+						if inlineData, ok := pm["inlineData"].(map[string]any); includeInlineData && ok {
+							mimeType, _ := inlineData["mimeType"].(string)
+							data, _ := inlineData["data"].(string)
+							if isGeminiInlineImageMIMEType(mimeType) && isValidBase64(data) {
+								contentBlocks = append(contentBlocks, map[string]any{
+									"type": "text",
+									"text": fmt.Sprintf("![image](data:%s;base64,%s)", mimeType, data),
+								})
+							}
 						}
 						if fc, ok := pm["functionCall"].(map[string]any); ok {
 							name, _ := fc["name"].(string)
@@ -2774,6 +2791,23 @@ func convertGeminiToClaudeMessage(geminiResp map[string]any, originalModel strin
 	}
 
 	return resp, usage
+}
+
+func isGeminiInlineImageMIMEType(mimeType string) bool {
+	switch mimeType {
+	case "image/gif", "image/jpeg", "image/png", "image/webp":
+		return true
+	default:
+		return false
+	}
+}
+
+func isValidBase64(data string) bool {
+	if data == "" {
+		return false
+	}
+	_, err := base64.StdEncoding.DecodeString(data)
+	return err == nil
 }
 
 func extractGeminiUsage(data []byte) *ClaudeUsage {

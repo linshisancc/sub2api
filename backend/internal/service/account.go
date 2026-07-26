@@ -89,6 +89,7 @@ const (
 	OpenAIEndpointCapabilityChatCompletions OpenAIEndpointCapability = "chat_completions"
 	OpenAIEndpointCapabilityEmbeddings      OpenAIEndpointCapability = "embeddings"
 	OpenAIEndpointCapabilityAlphaSearch     OpenAIEndpointCapability = "alpha_search"
+	OpenAIEndpointCapabilityLive            OpenAIEndpointCapability = "live"
 	// OpenAIEndpointCapabilityGrokMediaGeneration keeps image/video generation
 	// away from Grok accounts that are explicitly disabled or whose billing
 	// entitlement probe was forbidden. Video status lookups intentionally do not
@@ -1423,14 +1424,23 @@ func (a *Account) SupportsOpenAIEndpointCapability(capability OpenAIEndpointCapa
 		case OpenAIEndpointCapabilityChatCompletions:
 			return true
 		case OpenAIEndpointCapabilityGrokMediaGeneration:
-			eligible, _ := a.GrokMediaGenerationEligibility()
-			return eligible
+			eligible, reason := a.GrokMediaGenerationEligibility()
+			// Unobserved OAuth accounts remain scheduler candidates only so the
+			// request path can run the billing probe before forwarding. The
+			// forwarding gate itself fails closed if that probe is unavailable or
+			// cannot produce positive paid-entitlement evidence.
+			return eligible || reason == "billing_unobserved"
 		default:
 			return false
 		}
 	}
 	switch capability {
 	case OpenAIEndpointCapabilityChatCompletions:
+	case OpenAIEndpointCapabilityLive:
+		return a.Platform == PlatformOpenAI &&
+			a.Type == AccountTypeOAuth &&
+			!a.IsOpenAIPersonalAccessToken() &&
+			!a.IsOpenAIAgentIdentity()
 	case OpenAIEndpointCapabilityResponses:
 		// Responses 支持状态由 accounts.extra 的自动探测标记决定，而非
 		// credentials 能力集。已探测确认不支持 /v1/responses 的 APIKey 上游
@@ -1469,9 +1479,9 @@ func (a *Account) SupportsOpenAIEndpointCapability(capability OpenAIEndpointCapa
 }
 
 // GrokMediaGenerationEligibility reports whether a Grok account may receive
-// new image/video generation requests. Missing observations preserve legacy
-// routing; operators can fail closed for known-bad accounts with the explicit
-// override. A successful override takes precedence over stale probe data.
+// new image/video generation requests. OAuth media fails closed unless billing
+// observations provide positive paid-entitlement evidence. An explicit
+// operator override takes precedence over probe data.
 func (a *Account) GrokMediaGenerationEligibility() (bool, string) {
 	if a == nil || !a.IsGrok() {
 		return false, "not_grok"
@@ -1488,10 +1498,16 @@ func (a *Account) GrokMediaGenerationEligibility() (bool, string) {
 
 	billing, err := grokBillingSnapshotFromExtra(a.Extra)
 	if err != nil || billing == nil {
-		return true, "billing_unobserved"
+		return false, "billing_unobserved"
 	}
 	if billing.StatusCode == 403 || billing.WeeklyStatusCode == 403 || billing.MonthlyStatusCode == 403 {
 		return false, "billing_forbidden"
+	}
+	if isKnownGrokFreeAccount(a) {
+		return false, "billing_free_tier"
+	}
+	if !grokBillingHasAuthoritativeQuota(billing) {
+		return false, "billing_inconclusive"
 	}
 	return true, "eligible"
 }
