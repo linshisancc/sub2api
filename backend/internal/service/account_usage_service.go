@@ -345,6 +345,13 @@ func (s *AccountUsageService) GetUsage(ctx context.Context, accountID int64, for
 		return nil, fmt.Errorf("get account failed: %w", err)
 	}
 
+	// Dedicated UI load-test accounts must remain fully interactive without ever
+	// contacting Anthropic with synthetic credentials. Reuse the same persisted
+	// passive snapshot that the account table loads on mount.
+	if account.IsSyntheticUITest() && account.IsAnthropicOAuthOrSetupToken() {
+		return s.GetPassiveUsage(ctx, accountID)
+	}
+
 	if account.Platform == PlatformOpenAI && account.Type == AccountTypeOAuth {
 		usage, err := s.getOpenAIUsage(ctx, account, forceProbe)
 		if err == nil {
@@ -508,8 +515,28 @@ func (s *AccountUsageService) GetPassiveUsage(ctx context.Context, accountID int
 
 	// 添加窗口统计
 	s.addWindowStats(ctx, account, info)
+	if account.IsSyntheticUITest() {
+		applySyntheticWindowStats(info, account.Extra)
+	}
 
 	return info, nil
+}
+
+func applySyntheticWindowStats(info *UsageInfo, extra map[string]any) {
+	if info == nil || info.FiveHour == nil || len(extra) == 0 {
+		return
+	}
+	raw, ok := extra["synthetic_window_stats"].(map[string]any)
+	if !ok {
+		return
+	}
+	info.FiveHour.WindowStats = &WindowStats{
+		Requests:     int64(parseExtraInt(raw["requests"])),
+		Tokens:       int64(parseExtraInt(raw["tokens"])),
+		Cost:         parseExtraFloat64(raw["cost"]),
+		StandardCost: parseExtraFloat64(raw["standard_cost"]),
+		UserCost:     parseExtraFloat64(raw["user_cost"]),
+	}
 }
 
 // buildPassiveUsageWindow 从 Extra 中的被动采样数据（utilization 为 0-1 小数、reset 为 Unix 秒）
@@ -740,8 +767,8 @@ func (s *AccountUsageService) probeOpenAICodexSnapshot(ctx context.Context, acco
 			req.Header.Set("User-Agent", strings.TrimSpace(fp.UserAgent))
 		}
 	}
-	// 与真实转发一致：originator 与最终 User-Agent（可能来自指纹缓存，如 codex-tui）首段配套，
-	// 否则探针被上游 404（issue #3901）。
+	// 与真实转发一致：originator 与最终 User-Agent（可能来自指纹缓存）首段配套，否则探针被上游
+	// 404（issue #3901）；缓存里的降载桶身份同样在此归一化，避免探针被回 server_is_overloaded。
 	enforceCodexIdentityHeaders(req.Header)
 	setOpenAIChatGPTAccountHeaders(req.Header, account)
 
