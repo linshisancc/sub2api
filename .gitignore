@@ -144,3 +144,6 @@ frontend/coverage/
 aicodex
 output/
 req.json
+
+# Vitest / Vite cache at repo root
+.vite/
