@@ -451,6 +451,9 @@ func (s *warmupAccountStub) ListShadowsByParent(context.Context, int64) ([]*Acco
 func (s *warmupAccountStub) ListAllWithFilters(context.Context, string, string, string, string, int64, string) ([]Account, error) {
 	panic("unexpected")
 }
+func (s *warmupAccountStub) ListModelAvailabilityCandidates(context.Context, *int64, []string, bool) ([]Account, error) {
+	panic("unexpected")
+}
 
 var _ AccountRepository = (*warmupAccountStub)(nil)
 
