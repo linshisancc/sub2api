@@ -40,6 +40,10 @@ func (s *accountRepoStub) GetByID(ctx context.Context, id int64) (*Account, erro
 	panic("unexpected GetByID call")
 }
 
+func (s *accountRepoStub) ListExpiredRateLimitedAccounts(ctx context.Context) ([]Account, error) {
+	panic("unexpected ListExpiredRateLimitedAccounts call")
+}
+
 func (s *accountRepoStub) GetByIDs(ctx context.Context, ids []int64) ([]*Account, error) {
 	panic("unexpected GetByIDs call")
 }

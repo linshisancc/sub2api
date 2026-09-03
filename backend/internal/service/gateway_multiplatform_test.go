@@ -35,6 +35,10 @@ func (m *mockAccountRepoForPlatform) GetByID(ctx context.Context, id int64) (*Ac
 	return nil, errors.New("account not found")
 }
 
+func (m *mockAccountRepoForPlatform) ListExpiredRateLimitedAccounts(ctx context.Context) ([]Account, error) {
+	return nil, nil
+}
+
 func (m *mockAccountRepoForPlatform) GetByIDs(ctx context.Context, ids []int64) ([]*Account, error) {
 	var result []*Account
 	for _, id := range ids {

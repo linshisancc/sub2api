@@ -1860,6 +1860,10 @@ func (s *stubAccountRepo) GetByID(ctx context.Context, id int64) (*service.Accou
 	return nil, service.ErrAccountNotFound
 }
 
+func (s *stubAccountRepo) ListExpiredRateLimitedAccounts(ctx context.Context) ([]service.Account, error) {
+	return nil, nil
+}
+
 func (s *stubAccountRepo) GetByIDs(ctx context.Context, ids []int64) ([]*service.Account, error) {
 	return nil, errors.New("not implemented")
 }

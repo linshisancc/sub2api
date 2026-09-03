@@ -229,7 +229,9 @@ func TestRateLimitService_RecoverAccountAfterSuccessfulTest_ClearsErrorAndRateLi
 	require.True(t, result.ClearedError)
 	require.True(t, result.ClearedRateLimit)
 
-	require.Equal(t, 1, repo.getByIDCalls)
+	// GetByID 被调用 2 次：一次在 RecoverAccountState 中读取账号状态，
+	// 一次在 ClearRateLimit 内部为飞书限流恢复通知重新读取 RateLimitResetAt。
+	require.Equal(t, 2, repo.getByIDCalls)
 	require.Equal(t, 1, repo.clearErrorCalls)
 	require.Equal(t, 1, repo.clearRateLimitCalls)
 	require.Equal(t, 1, repo.clearAntigravityCalls)

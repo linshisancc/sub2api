@@ -454,6 +454,9 @@ func (s *warmupAccountStub) ListAllWithFilters(context.Context, string, string, 
 func (s *warmupAccountStub) ListModelAvailabilityCandidates(context.Context, *int64, []string, bool) ([]Account, error) {
 	panic("unexpected")
 }
+func (s *warmupAccountStub) ResetQuotaUsedAndClearRateLimitCooldown(context.Context, int64) error {
+	panic("unexpected")
+}
 
 var _ AccountRepository = (*warmupAccountStub)(nil)
 

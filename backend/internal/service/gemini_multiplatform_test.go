@@ -28,6 +28,10 @@ func (m *mockAccountRepoForGemini) GetByID(ctx context.Context, id int64) (*Acco
 	return nil, errors.New("account not found")
 }
 
+func (m *mockAccountRepoForGemini) ListExpiredRateLimitedAccounts(ctx context.Context) ([]Account, error) {
+	return nil, nil
+}
+
 func (m *mockAccountRepoForGemini) GetByIDs(ctx context.Context, ids []int64) ([]*Account, error) {
 	var result []*Account
 	for _, id := range ids {
