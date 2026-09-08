@@ -164,8 +164,9 @@ func TestOpenAIGatewayService_Forward_NonCompactRequestIgnoresCompactOnlyModelMa
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.Equal(t, "gpt-5.4", result.Model)
-	require.Equal(t, "gpt-5.4", result.UpstreamModel)
-	require.Equal(t, "gpt-5.4", gjson.GetBytes(upstream.lastBody, "model").String())
+	// ChatGPT OAuth 账号的 gpt-5.4 已在 Codex 边界退役，出站被替换为 gpt-5.6-terra。
+	require.Equal(t, "gpt-5.6-terra", result.UpstreamModel)
+	require.Equal(t, "gpt-5.6-terra", gjson.GetBytes(upstream.lastBody, "model").String())
 }
 
 func TestOpenAIGatewayService_OAuthPassthrough_CompactOnlyModelMappingOverridesUpstreamModel(t *testing.T) {

@@ -220,13 +220,17 @@ func TestForwardAsAnthropic_NormalizesRoutingAndEffortForGpt54XHigh(t *testing.T
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.Equal(t, "gpt-5.4-xhigh", result.Model)
-	require.Equal(t, "gpt-5.4", result.UpstreamModel)
+	// ChatGPT OAuth 账号的 gpt-5.4 已在 Codex 边界退役，出站被替换为 gpt-5.6-terra；
+	// billing 仍按客户端请求的 gpt-5.4 计费。
+	require.Equal(t, "gpt-5.6-terra", result.UpstreamModel)
 	require.Equal(t, "gpt-5.4", result.BillingModel)
 	require.NotNil(t, result.ReasoningEffort)
-	require.Equal(t, "xhigh", *result.ReasoningEffort)
+	// 出站模型被替换为 gpt-5.6-terra 后，按 openai_compat_model.go 既有语义
+	// （GPT-5.6 接受原始 max，而非转回 xhigh），effort 保持 max。
+	require.Equal(t, "max", *result.ReasoningEffort)
 
-	require.Equal(t, "gpt-5.4", gjson.GetBytes(upstream.lastBody, "model").String())
-	require.Equal(t, "xhigh", gjson.GetBytes(upstream.lastBody, "reasoning.effort").String())
+	require.Equal(t, "gpt-5.6-terra", gjson.GetBytes(upstream.lastBody, "model").String())
+	require.Equal(t, "max", gjson.GetBytes(upstream.lastBody, "reasoning.effort").String())
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.Equal(t, "gpt-5.4-xhigh", gjson.GetBytes(rec.Body.Bytes(), "model").String())
 	require.Equal(t, "ok", gjson.GetBytes(rec.Body.Bytes(), "content.0.text").String())

@@ -250,8 +250,9 @@ func TestResolveOpenAIForwardMappedModels_CompactMappingPrecedence(t *testing.T)
 			name: "non-compact uses ordinary mapping",
 			account: &Account{Platform: PlatformOpenAI, Type: AccountTypeOAuth,
 				Credentials: conflictingMappings},
+			// billing 按映射值 gpt-5.4；ChatGPT OAuth 出站退役替换为 gpt-5.6-terra。
 			wantBilling:  "gpt-5.4",
-			wantUpstream: "gpt-5.4",
+			wantUpstream: "gpt-5.6-terra",
 		},
 		{
 			name: "compact falls back to ordinary mapped model",
@@ -394,10 +395,34 @@ func TestNormalizeOpenAIModelForUpstream(t *testing.T) {
 			want:    "gpt6",
 		},
 		{
-			name:    "oauth normalizes known codex alias",
+			name:    "oauth maps retired gpt-5.4 codex alias to terra",
 			account: &Account{Type: AccountTypeOAuth},
 			model:   "gpt-5.4-high",
+			want:    "gpt-5.6-terra",
+		},
+		{
+			name:    "oauth maps retired gpt-5.4-mini to luna",
+			account: &Account{Type: AccountTypeOAuth},
+			model:   "gpt-5.4-mini",
+			want:    "gpt-5.6-luna",
+		},
+		{
+			name:    "oauth folds compact-style gpt-5.4 name to terra",
+			account: &Account{Type: AccountTypeOAuth},
+			model:   "gpt-5.4-openai-compact",
+			want:    "gpt-5.6-terra",
+		},
+		{
+			name:    "apikey keeps retired model untouched",
+			account: &Account{Type: AccountTypeAPIKey},
+			model:   "gpt-5.4",
 			want:    "gpt-5.4",
+		},
+		{
+			name:    "apikey keeps retired gpt-5.4-mini untouched",
+			account: &Account{Type: AccountTypeAPIKey},
+			model:   "gpt-5.4-mini",
+			want:    "gpt-5.4-mini",
 		},
 		{
 			name:    "oauth preserves GPT-5.5 Pro model",

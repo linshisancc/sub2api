@@ -433,6 +433,11 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 			if model, ok := decoded["model"].(string); ok {
 				upstreamModel = strings.TrimSpace(model)
 			}
+			// normalizeOpenAIResponsesImageOnlyModel 会把模型固定为
+			// openAIImagesResponsesMainModel(gpt-5.4-mini,已从 ChatGPT 账号 Codex
+			// 边界退役)。这里在归一之后对 ChatGPT-account Codex 出站再套退役
+			// 重映射;API-Key 图片上游仍支持 gpt-5.4-mini,保持原值。
+			upstreamModel = replaceRetiredChatGPTCodexModelForUpstream(account, upstreamModel)
 			logger.LegacyPrintf("service.openai_gateway", "[OpenAI] Normalized /responses image-only model request inbound_model=%s image_model=%s upstream_model=%s", requestView.Model, billingModel, upstreamModel)
 		}
 		if err := validateOpenAIResponsesImageModel(decoded, upstreamModel); err != nil {

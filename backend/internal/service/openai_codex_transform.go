@@ -1217,9 +1217,36 @@ func normalizeOpenAIResponsesImageOnlyModel(reqBody map[string]any) bool {
 	return modified
 }
 
+// replaceRetiredChatGPTCodexModel 把 2026-08-31 起在「ChatGPT 账号登录 Codex」
+// 边界退役的模型映射到官方后继（gpt-5.4 -> gpt-5.6-terra，gpt-5.4-mini ->
+// gpt-5.6-luna）。OpenAI API 仍支持 gpt-5.4 / gpt-5.4-mini，因此该纯映射只能
+// 在 Codex/OAuth 出站收敛处使用（见 normalizeOpenAIModelForUpstream、调度
+// compact 早退路径与图片 image-only 覆写点），不得进入计费或
+// normalizeCodexModel（限流 / prompt-cache 键保持按 gpt-5.4 归一）。
+func replaceRetiredChatGPTCodexModel(model string) string {
+	switch strings.TrimSpace(model) {
+	case "gpt-5.4":
+		return "gpt-5.6-terra"
+	case "gpt-5.4-mini":
+		return "gpt-5.6-luna"
+	default:
+		return model
+	}
+}
+
+// replaceRetiredChatGPTCodexModelForUpstream 是带账号守卫的版本：仅对
+// ChatGPT-account Codex 出站（OAuth / SetupToken / nil-account 的传统 codex
+// 归一）生效；API-Key 与 passthrough 保持原模型（API 仍服务 gpt-5.4/mini）。
+func replaceRetiredChatGPTCodexModelForUpstream(account *Account, model string) string {
+	if account == nil || account.UsesOpenAICodexProtocol() {
+		return replaceRetiredChatGPTCodexModel(model)
+	}
+	return model
+}
+
 func normalizeOpenAIModelForUpstream(account *Account, model string) string {
 	if account == nil || account.UsesOpenAICodexProtocol() {
-		return normalizeCodexModel(model)
+		return replaceRetiredChatGPTCodexModel(normalizeCodexModel(model))
 	}
 	return strings.TrimSpace(model)
 }

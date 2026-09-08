@@ -824,10 +824,12 @@ func resolveOpenAIAccountUpstreamModelForRequest(account *Account, requestedMode
 	// Compact mappings are keyed by the client-visible model. Prefer an exact
 	// compact rule before ordinary account mapping; otherwise a normal alias can
 	// hide the compact-specific rule and make scheduling disagree with Forward.
+	// compact 早退不经过 normalizeOpenAIModelForUpstream，这里同样对
+	// ChatGPT-account Codex 出站套退役模型重映射（API-Key 账号保持原值）。
 	if requireCompact && account != nil {
 		if compactModel, matched := account.ResolveCompactMappedModel(strings.TrimSpace(requestedModel)); matched {
 			if compactModel = strings.TrimSpace(compactModel); compactModel != "" {
-				return compactModel
+				return replaceRetiredChatGPTCodexModelForUpstream(account, compactModel)
 			}
 		}
 	}
@@ -839,7 +841,7 @@ func resolveOpenAIAccountUpstreamModelForRequest(account *Account, requestedMode
 	if requireCompact {
 		compactModel := resolveOpenAICompactForwardModel(account, upstreamModel)
 		if compactModel != upstreamModel {
-			return compactModel
+			return replaceRetiredChatGPTCodexModelForUpstream(account, compactModel)
 		}
 	}
 	return normalizeOpenAIModelForUpstream(account, upstreamModel)
