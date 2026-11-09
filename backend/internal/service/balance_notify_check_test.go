@@ -4,7 +4,11 @@ package service
 
 import (
 	"context"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -240,8 +244,8 @@ func TestCheckQuotaDimCrossings_NoDimensions(t *testing.T) {
 	s, _ := newBalanceNotifyServiceForTest()
 	account := &Account{ID: 1, Name: "test", Platform: PlatformAnthropic}
 	// Empty dims → no crossing, no panic.
-	s.checkQuotaDimCrossings(account, nil, 10, []string{"admin@example.com"}, "TestSite")
-	s.checkQuotaDimCrossings(account, []quotaDim{}, 10, []string{"admin@example.com"}, "TestSite")
+	s.checkQuotaDimCrossings(context.Background(), account, nil, 10, []string{"admin@example.com"}, "TestSite")
+	s.checkQuotaDimCrossings(context.Background(), account, []quotaDim{}, 10, []string{"admin@example.com"}, "TestSite")
 }
 
 func TestCheckQuotaDimCrossings_DisabledDimension(t *testing.T) {
@@ -258,7 +262,7 @@ func TestCheckQuotaDimCrossings_DisabledDimension(t *testing.T) {
 		},
 	}
 	// Disabled dimension should be skipped even if crossing would occur.
-	s.checkQuotaDimCrossings(account, dims, 50, []string{"admin@example.com"}, "TestSite")
+	s.checkQuotaDimCrossings(context.Background(), account, dims, 50, []string{"admin@example.com"}, "TestSite")
 }
 
 func TestCheckQuotaDimCrossings_ZeroThresholdSkipped(t *testing.T) {
@@ -275,7 +279,7 @@ func TestCheckQuotaDimCrossings_ZeroThresholdSkipped(t *testing.T) {
 		},
 	}
 	// Zero threshold → skipped.
-	s.checkQuotaDimCrossings(account, dims, 50, []string{"admin@example.com"}, "TestSite")
+	s.checkQuotaDimCrossings(context.Background(), account, dims, 50, []string{"admin@example.com"}, "TestSite")
 }
 
 func TestCheckQuotaDimCrossings_NoCrossing_BothBelowThreshold(t *testing.T) {
@@ -293,7 +297,7 @@ func TestCheckQuotaDimCrossings_NoCrossing_BothBelowThreshold(t *testing.T) {
 			limit:         1000,
 		},
 	}
-	s.checkQuotaDimCrossings(account, dims, 50, []string{"admin@example.com"}, "TestSite")
+	s.checkQuotaDimCrossings(context.Background(), account, dims, 50, []string{"admin@example.com"}, "TestSite")
 }
 
 func TestCheckQuotaDimCrossings_NoCrossing_BothAboveThreshold(t *testing.T) {
@@ -311,7 +315,7 @@ func TestCheckQuotaDimCrossings_NoCrossing_BothAboveThreshold(t *testing.T) {
 			limit:         1000,
 		},
 	}
-	s.checkQuotaDimCrossings(account, dims, 50, []string{"admin@example.com"}, "TestSite")
+	s.checkQuotaDimCrossings(context.Background(), account, dims, 50, []string{"admin@example.com"}, "TestSite")
 }
 
 func TestCheckQuotaDimCrossings_NegativeResolvedThreshold_Skipped(t *testing.T) {
@@ -329,7 +333,7 @@ func TestCheckQuotaDimCrossings_NegativeResolvedThreshold_Skipped(t *testing.T) 
 			limit:         1000,
 		},
 	}
-	s.checkQuotaDimCrossings(account, dims, 50, []string{"admin@example.com"}, "TestSite")
+	s.checkQuotaDimCrossings(context.Background(), account, dims, 50, []string{"admin@example.com"}, "TestSite")
 }
 
 func TestCheckQuotaDimCrossings_PercentageThreshold_NoCrossing(t *testing.T) {
@@ -347,7 +351,7 @@ func TestCheckQuotaDimCrossings_PercentageThreshold_NoCrossing(t *testing.T) {
 			limit:         1000,
 		},
 	}
-	s.checkQuotaDimCrossings(account, dims, 50, []string{"admin@example.com"}, "TestSite")
+	s.checkQuotaDimCrossings(context.Background(), account, dims, 50, []string{"admin@example.com"}, "TestSite")
 }
 
 func TestCheckQuotaDimCrossings_ZeroLimit_Skipped(t *testing.T) {
@@ -364,7 +368,7 @@ func TestCheckQuotaDimCrossings_ZeroLimit_Skipped(t *testing.T) {
 			limit:         0,
 		},
 	}
-	s.checkQuotaDimCrossings(account, dims, 50, []string{"admin@example.com"}, "TestSite")
+	s.checkQuotaDimCrossings(context.Background(), account, dims, 50, []string{"admin@example.com"}, "TestSite")
 }
 
 func TestCheckQuotaDimCrossings_MultipleDims_MixedResults(t *testing.T) {
@@ -400,5 +404,40 @@ func TestCheckQuotaDimCrossings_MultipleDims_MixedResults(t *testing.T) {
 		},
 	}
 	// None should trigger. No panic expected.
-	s.checkQuotaDimCrossings(account, dims, 50, []string{"admin@example.com"}, "TestSite")
+	s.checkQuotaDimCrossings(context.Background(), account, dims, 50, []string{"admin@example.com"}, "TestSite")
+}
+
+func TestBalanceAndQuotaCrossingsSendFeishuAlerts(t *testing.T) {
+	cards := make(chan string, 2)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		cards <- string(body)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"code":0}`)
+	}))
+	defer server.Close()
+
+	repo := newMockSettingRepo()
+	repo.data[SettingKeyBalanceLowNotifyEnabled] = "true"
+	repo.data[SettingKeyBalanceLowNotifyThreshold] = "10"
+	repo.data[SettingKeyFeishuWebhookEnabled] = "true"
+	repo.data[SettingKeyFeishuWebhookURL] = server.URL
+	repo.data[SettingKeyFeishuWebhookNotifyBalance] = "true"
+	repo.data[SettingKeyFeishuWebhookNotifyAccount] = "true"
+	s := NewBalanceNotifyService(NewEmailService(repo, nil), repo, nil, NewFeishuWebhookService(repo, nil))
+	defer s.Stop()
+
+	s.CheckBalanceAfterDeduction(context.Background(), &User{ID: 7, Username: "user", BalanceNotifyEnabled: true}, 20, 15)
+	s.checkQuotaDimCrossings(context.Background(), &Account{ID: 8, Name: "account", Platform: PlatformAnthropic}, []quotaDim{{
+		name: quotaDimDaily, enabled: true, threshold: 400, currentUsed: 650, limit: 1000,
+	}}, 100, nil, "TestSite")
+
+	for _, want := range []string{"用户余额不足", "账号额度告警"} {
+		select {
+		case card := <-cards:
+			require.Contains(t, card, want)
+		case <-time.After(2 * time.Second):
+			t.Fatalf("missing Feishu alert: %s", want)
+		}
+	}
 }
