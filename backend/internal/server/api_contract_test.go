@@ -1046,7 +1046,7 @@ func TestAPIContracts(t *testing.T) {
 					"login_bruteforce_ban_minutes": 60,
 					"scheduled_warmup_enabled": false,
 					"scheduled_warmup_cron": "0 8 * * *",
-					"scheduled_warmup_platforms": ["anthropic","openai","gemini","antigravity","grok","kimi","zhipu","deepseek"],
+					"scheduled_warmup_platforms": ["anthropic","openai","gemini","antigravity","grok","kimi","zhipu","deepseek","minimax","opencode_go","typesafe","command_code","cline"],
 					"scheduled_warmup_workday_only": true,
 					"scheduled_warmup_extra_workdays": null,
 					"scheduled_warmup_holidays": null
@@ -1423,7 +1423,7 @@ func TestAPIContracts(t *testing.T) {
 					"login_bruteforce_ban_minutes": 60,
 					"scheduled_warmup_enabled": false,
 					"scheduled_warmup_cron": "0 8 * * *",
-					"scheduled_warmup_platforms": ["anthropic","openai","gemini","antigravity","grok","kimi","zhipu","deepseek"],
+					"scheduled_warmup_platforms": ["anthropic","openai","gemini","antigravity","grok","kimi","zhipu","deepseek","minimax","opencode_go","typesafe","command_code","cline"],
 					"scheduled_warmup_workday_only": true,
 					"scheduled_warmup_extra_workdays": null,
 					"scheduled_warmup_holidays": null
@@ -2086,6 +2086,10 @@ func (s *stubAccountRepo) ClearAntigravityQuotaScopes(ctx context.Context, id in
 }
 
 func (s *stubAccountRepo) ClearModelRateLimits(ctx context.Context, id int64) error {
+	return errors.New("not implemented")
+}
+
+func (s *stubAccountRepo) ClearModelRateLimit(ctx context.Context, id int64, scope string) error {
 	return errors.New("not implemented")
 }
 

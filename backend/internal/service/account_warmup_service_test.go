@@ -428,7 +428,10 @@ func (s *warmupAccountStub) ClearAntigravityQuotaScopes(context.Context, int64) 
 	panic("unexpected")
 }
 func (s *warmupAccountStub) ClearModelRateLimits(context.Context, int64) error { panic("unexpected") }
-func (s *warmupAccountStub) RevertProxyFallback(context.Context, int64) error  { panic("unexpected") }
+func (s *warmupAccountStub) ClearModelRateLimit(context.Context, int64, string) error {
+	panic("unexpected")
+}
+func (s *warmupAccountStub) RevertProxyFallback(context.Context, int64) error { panic("unexpected") }
 func (s *warmupAccountStub) UpdateSessionWindow(context.Context, int64, *time.Time, *time.Time, string) error {
 	panic("unexpected")
 }
